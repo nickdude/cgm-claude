@@ -49,6 +49,8 @@ dependencies:
 
   dio: ^5.7.0
 
+  flutter_svg: ^2.0.10
+
   flutter_secure_storage: ^9.2.2
 
   shared_preferences: ^2.3.2
@@ -97,6 +99,7 @@ flutter:
     - assets/images/signin/
     - assets/images/discover/
     - assets/images/device-setup/
+    - assets/icons/
 
   # To add assets to your application, add an assets section, like this:
   # assets:
