@@ -27,7 +27,10 @@ class UserModel {
     Map<String, dynamic> json,
   ) {
     return UserModel(
-      id: json["_id"],
+      id: (json["_id"] ??
+              json["id"] ??
+              "")
+          .toString(),
 
       fullName:
           json["fullName"] ?? "",
@@ -48,6 +51,49 @@ class UserModel {
       isCgmConnected:
           json["isCgmConnected"] ??
               false,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      "_id": id,
+      "fullName": fullName,
+      "email": email,
+      "profileImage": profileImage,
+      "isProfileCompleted":
+          isProfileCompleted,
+      "isOnboardingCompleted":
+          isOnboardingCompleted,
+      "isCgmConnected":
+          isCgmConnected,
+    };
+  }
+
+  UserModel copyWith({
+    String? id,
+    String? fullName,
+    String? email,
+    String? profileImage,
+    bool? isProfileCompleted,
+    bool? isOnboardingCompleted,
+    bool? isCgmConnected,
+  }) {
+    return UserModel(
+      id: id ?? this.id,
+      fullName:
+          fullName ?? this.fullName,
+      email: email ?? this.email,
+      profileImage: profileImage ??
+          this.profileImage,
+      isProfileCompleted:
+          isProfileCompleted ??
+              this.isProfileCompleted,
+      isOnboardingCompleted:
+          isOnboardingCompleted ??
+              this.isOnboardingCompleted,
+      isCgmConnected:
+          isCgmConnected ??
+              this.isCgmConnected,
     );
   }
 }

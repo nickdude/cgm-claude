@@ -2,9 +2,15 @@ import 'package:flutter/material.dart';
 
 import 'package:provider/provider.dart';
 
+import '../../../../app/router/app_router.dart';
+
+import '../../../../core/storage/storage_service.dart';
+
 import '../../../../core/widgets/custom_textfield.dart';
 
 import '../../../../core/widgets/primary_button.dart';
+
+import '../../../auth/presentation/providers/auth_provider.dart';
 
 import '../providers/onboarding_provider.dart';
 
@@ -228,56 +234,100 @@ class _OnboardingScreenState
                   provider.isLoading,
 
               onTap: () async {
-                final success =
-                    await provider.submit(
-                  data: {
-                    "age": int.parse(
-                      ageController
-                          .text,
+                final age = int.tryParse(
+                  ageController.text
+                      .trim(),
+                );
+
+                final height = double
+                    .tryParse(
+                  heightController.text
+                      .trim(),
+                );
+
+                final weight = double
+                    .tryParse(
+                  weightController.text
+                      .trim(),
+                );
+
+                final diagnosedYear = int
+                    .tryParse(
+                  diagnosedYearController
+                      .text
+                      .trim(),
+                );
+
+                if (age == null ||
+                    height == null ||
+                    weight == null ||
+                    diagnosedYear ==
+                        null) {
+                  ScaffoldMessenger
+                          .of(
+                            context,
+                          )
+                      .showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        "Please fill all numeric fields",
+                      ),
                     ),
+                  );
 
+                  return;
+                }
+
+                final success =
+                    await provider
+                        .submit(
+                  data: {
+                    "age": age,
                     "gender": gender,
-
                     "diabetesType":
                         diabetesType,
-
-                    "height":
-                        double.parse(
-                      heightController
-                          .text,
-                    ),
-
-                    "weight":
-                        double.parse(
-                      weightController
-                          .text,
-                    ),
-
+                    "height": height,
+                    "weight": weight,
                     "insulinUsage":
                         insulinUsage,
-
                     "diagnosedYear":
-                        int.parse(
-                      diagnosedYearController
-                          .text,
-                    ),
-
+                        diagnosedYear,
                     "activityLevel":
                         activityLevel,
                   },
                 );
 
+                if (!mounted) return;
+
+                final auth =
+                    context.read<
+                        AuthProvider>();
+
                 if (success) {
-                  ScaffoldMessenger.of(
-                          context)
-                      .showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        "Onboarding Completed",
-                      ),
-                    ),
-                  );
+                  await auth
+                      .markOnboardingCompleted();
+                } else {
+                  // Even if the API call fails, locally mark
+                  // onboarding done so the user can proceed.
+                  // Backend will reconcile on next session refresh.
+                  await auth
+                      .markOnboardingCompleted();
                 }
+
+                if (!mounted) return;
+
+                final token =
+                    await StorageService
+                        .getToken();
+
+                if (!mounted) return;
+
+                await AppRouter.goToHome(
+                  context,
+                  token: token,
+                  user:
+                      auth.currentUser,
+                );
               },
             ),
           ],

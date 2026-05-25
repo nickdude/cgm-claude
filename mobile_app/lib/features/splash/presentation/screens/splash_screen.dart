@@ -1,18 +1,14 @@
 import 'package:flutter/material.dart';
 
+import 'package:provider/provider.dart';
+
+import '../../../../app/router/app_router.dart';
+
 import '../../../../app/theme/app_colors.dart';
 
 import '../../../../core/storage/storage_service.dart';
 
-import '../../../auth/presentation/screens/login_screen.dart';
-
-import '../../../profile/presentation/screens/profile_setup_screen.dart';
-
-import '../../../onboarding/presentation/screens/onboarding_screen.dart';
-
-import '../../../cgm/connect/presentation/screens/cgm_connect_intro_screen.dart';
-
-import '../../../dashboard/presentation/screens/main_navigation_screen.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 
 class SplashScreen
     extends StatefulWidget {
@@ -29,83 +25,39 @@ class _SplashScreenState
   void initState() {
     super.initState();
 
-    init();
+    _init();
   }
 
-  Future<void> init() async {
-    await Future.delayed(
-      const Duration(seconds: 2),
+  Future<void> _init() async {
+    final start = DateTime.now();
+
+    final auth =
+        context.read<AuthProvider>();
+
+    await auth.loadCachedSession();
+
+    final token = await StorageService
+        .getToken();
+
+    final elapsed = DateTime.now()
+        .difference(start);
+
+    const minSplash = Duration(
+      milliseconds: 1200,
     );
 
-    final token =
-        await StorageService.getToken();
+    if (elapsed < minSplash) {
+      await Future.delayed(
+        minSplash - elapsed,
+      );
+    }
 
     if (!mounted) return;
 
-    if (token == null) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) =>
-              const LoginScreen(),
-        ),
-      );
-
-      return;
-    }
-
-    // TEMP MOCK FLOW
-
-    final isProfileCompleted =
-        false;
-
-    final isOnboardingCompleted =
-        false;
-
-    final isCgmConnected = false;
-
-    if (!isProfileCompleted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) =>
-              const ProfileSetupScreen(),
-        ),
-      );
-
-      return;
-    }
-
-    if (!isOnboardingCompleted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) =>
-              const OnboardingScreen(),
-        ),
-      );
-
-      return;
-    }
-
-    if (!isCgmConnected) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) =>
-              const CGMConnectIntroScreen(),
-        ),
-      );
-
-      return;
-    }
-
-    Navigator.pushReplacement(
+    await AppRouter.goToHome(
       context,
-      MaterialPageRoute(
-        builder: (_) =>
-            const MainNavigationScreen(),
-      ),
+      token: token,
+      user: auth.currentUser,
     );
   }
 
@@ -115,15 +67,14 @@ class _SplashScreenState
       body: Container(
         width: double.infinity,
 
-        decoration: const BoxDecoration(
+        decoration:
+            const BoxDecoration(
           gradient: LinearGradient(
             colors: [
               AppColors.primary,
               AppColors.secondary,
             ],
-
             begin: Alignment.topLeft,
-
             end: Alignment.bottomRight,
           ),
         ),
@@ -143,14 +94,23 @@ class _SplashScreenState
 
             Text(
               "CGM Platform",
-
               style: TextStyle(
                 color: Colors.white,
-
                 fontSize: 34,
-
                 fontWeight:
                     FontWeight.bold,
+              ),
+            ),
+
+            SizedBox(height: 16),
+
+            SizedBox(
+              height: 24,
+              width: 24,
+              child:
+                  CircularProgressIndicator(
+                color: Colors.white,
+                strokeWidth: 2,
               ),
             ),
           ],

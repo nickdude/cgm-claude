@@ -1,72 +1,32 @@
 package com.belvix.app
 
 import io.flutter.embedding.android.FlutterActivity
-
 import io.flutter.embedding.engine.FlutterEngine
-
 import io.flutter.plugin.common.EventChannel
-
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity :
-    FlutterActivity() {
-
-    private val METHOD_CHANNEL =
-        "cgm_sdk/method"
-
-    private val EVENT_CHANNEL =
-        "cgm_sdk/events"
-
-    private var eventSink:
-            EventChannel.EventSink? =
-        null
+class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(
         flutterEngine: FlutterEngine
     ) {
+        super.configureFlutterEngine(flutterEngine)
 
-        super.configureFlutterEngine(
-            flutterEngine
-        )
-
-        EventChannel(
-            flutterEngine.dartExecutor
-                .binaryMessenger,
-
-            EVENT_CHANNEL
-        ).setStreamHandler(
-            object :
-                EventChannel.StreamHandler {
-
-                override fun onListen(
-                    arguments: Any?,
-                    events:
-                        EventChannel.EventSink?
-                ) {
-
-                    eventSink = events
-                }
-
-                override fun onCancel(
-                    arguments: Any?
-                ) {
-
-                    eventSink = null
-                }
-            }
-        )
+        val bridge = CgmSdkBridge(applicationContext)
 
         MethodChannel(
-            flutterEngine.dartExecutor
-                .binaryMessenger,
-
+            flutterEngine.dartExecutor.binaryMessenger,
             METHOD_CHANNEL
-        ).setMethodCallHandler(
+        ).setMethodCallHandler(bridge)
 
-            CgmSdkBridge(
-                this,
-                eventSink
-            )
-        )
+        EventChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            EVENT_CHANNEL
+        ).setStreamHandler(bridge)
+    }
+
+    companion object {
+        private const val METHOD_CHANNEL = "cgm_sdk/method"
+        private const val EVENT_CHANNEL = "cgm_sdk/events"
     }
 }

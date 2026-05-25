@@ -37,10 +37,16 @@
 
     <uses-permission
         android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    
+
+    <uses-permission
+        android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <uses-permission
+        android:name="android.permission.INTERNET" />
+
     <application
         android:label="mobile_app"
-        android:name="${applicationName}"
+        android:name=".BelvixApplication"
         android:icon="@mipmap/ic_launcher">
 
         <receiver
@@ -81,6 +87,10 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

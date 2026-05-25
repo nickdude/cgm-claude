@@ -1,15 +1,11 @@
 import 'package:flutter/services.dart';
 
 class CgmMethodChannel {
-  static const MethodChannel
-      _channel = MethodChannel(
-    'cgm_sdk/method',
-  );
+  static const MethodChannel _channel =
+      MethodChannel("cgm_sdk/method");
 
   static Future<void> init() async {
-    await _channel.invokeMethod(
-      'init',
-    );
+    await _channel.invokeMethod("init");
   }
 
   static Future<bool> auth({
@@ -17,11 +13,11 @@ class CgmMethodChannel {
     required String appSecret,
   }) async {
     final result =
-        await _channel.invokeMethod(
-      'auth',
+        await _channel.invokeMethod<bool>(
+      "auth",
       {
-        'appId': appId,
-        'appSecret': appSecret,
+        "appId": appId,
+        "appSecret": appSecret,
       },
     );
 
@@ -31,35 +27,35 @@ class CgmMethodChannel {
   static Future<bool>
       checkAuthorized() async {
     final result =
-        await _channel.invokeMethod(
-      'checkAuthorized',
+        await _channel.invokeMethod<bool>(
+      "checkAuthorized",
     );
 
     return result ?? false;
   }
 
-  static Future<void>
-      startScan() async {
+  static Future<void> startScan() async {
     await _channel.invokeMethod(
-      'startScan',
+      "startScan",
     );
   }
 
-  static Future<void>
-      stopScan() async {
+  static Future<void> stopScan() async {
     await _channel.invokeMethod(
-      'stopScan',
+      "stopScan",
     );
   }
 
-  static Future<bool> connect(
-    String sn,
-  ) async {
+  static Future<bool> connect({
+    required String sn,
+    bool autoConnect = false,
+  }) async {
     final result =
-        await _channel.invokeMethod(
-      'connect',
+        await _channel.invokeMethod<bool>(
+      "connect",
       {
-        'sn': sn,
+        "sn": sn,
+        "autoConnect": autoConnect,
       },
     );
 
@@ -69,15 +65,15 @@ class CgmMethodChannel {
   static Future<void>
       disconnect() async {
     await _channel.invokeMethod(
-      'disconnect',
+      "disconnect",
     );
   }
 
   static Future<bool>
       isConnected() async {
     final result =
-        await _channel.invokeMethod(
-      'isConnected',
+        await _channel.invokeMethod<bool>(
+      "isConnected",
     );
 
     return result ?? false;
@@ -88,15 +84,39 @@ class CgmMethodChannel {
     required String sn,
     required int indexStart,
   }) async {
-    final result =
-        await _channel.invokeMethod(
-      'getHistory',
+    final result = await _channel
+        .invokeMethod<List<dynamic>>(
+      "getHistory",
       {
-        'sn': sn,
-        'indexStart': indexStart,
+        "sn": sn,
+        "indexStart": indexStart,
       },
     );
 
-    return result ?? [];
+    return result ?? const [];
+  }
+
+  static Future<void>
+      startHeartbeat() async {
+    await _channel.invokeMethod(
+      "startHeartbeat",
+    );
+  }
+
+  static Future<void>
+      stopHeartbeat() async {
+    await _channel.invokeMethod(
+      "stopHeartbeat",
+    );
+  }
+
+  static Future<bool>
+      isBluetoothEnabled() async {
+    final v = await _channel
+        .invokeMethod<bool>(
+      "isBluetoothEnabled",
+    );
+
+    return v ?? false;
   }
 }
