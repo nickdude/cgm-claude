@@ -7,11 +7,13 @@ class RegisterUsecase {
 
   Future<void> call({
     required String fullName,
+    required String phoneNumber,
     required String email,
     required String password,
   }) async {
     await repository.register(
       fullName: fullName,
+      phoneNumber: phoneNumber,
       email: email,
       password: password,
     );

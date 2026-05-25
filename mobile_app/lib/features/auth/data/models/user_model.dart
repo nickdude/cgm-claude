@@ -3,6 +3,8 @@ class UserModel {
 
   final String fullName;
 
+  final String phoneNumber;
+
   final String email;
 
   final String profileImage;
@@ -16,6 +18,7 @@ class UserModel {
   UserModel({
     required this.id,
     required this.fullName,
+    required this.phoneNumber,
     required this.email,
     required this.profileImage,
     required this.isProfileCompleted,
@@ -23,34 +26,23 @@ class UserModel {
     required this.isCgmConnected,
   });
 
-  factory UserModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
+  factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
-      id: (json["_id"] ??
-              json["id"] ??
-              "")
-          .toString(),
+      id: (json["_id"] ?? json["id"] ?? "").toString(),
 
-      fullName:
-          json["fullName"] ?? "",
+      fullName: json["fullName"] ?? "",
+
+      phoneNumber: json["phoneNumber"] ?? "",
 
       email: json["email"] ?? "",
 
-      profileImage:
-          json["profileImage"] ?? "",
+      profileImage: json["profileImage"] ?? "",
 
-      isProfileCompleted:
-          json["isProfileCompleted"] ??
-              false,
+      isProfileCompleted: json["isProfileCompleted"] ?? false,
 
-      isOnboardingCompleted:
-          json["isOnboardingCompleted"] ??
-              false,
+      isOnboardingCompleted: json["isOnboardingCompleted"] ?? false,
 
-      isCgmConnected:
-          json["isCgmConnected"] ??
-              false,
+      isCgmConnected: json["isCgmConnected"] ?? false,
     );
   }
 
@@ -58,20 +50,19 @@ class UserModel {
     return {
       "_id": id,
       "fullName": fullName,
+      "phoneNumber": phoneNumber,
       "email": email,
       "profileImage": profileImage,
-      "isProfileCompleted":
-          isProfileCompleted,
-      "isOnboardingCompleted":
-          isOnboardingCompleted,
-      "isCgmConnected":
-          isCgmConnected,
+      "isProfileCompleted": isProfileCompleted,
+      "isOnboardingCompleted": isOnboardingCompleted,
+      "isCgmConnected": isCgmConnected,
     };
   }
 
   UserModel copyWith({
     String? id,
     String? fullName,
+    String? phoneNumber,
     String? email,
     String? profileImage,
     bool? isProfileCompleted,
@@ -80,20 +71,14 @@ class UserModel {
   }) {
     return UserModel(
       id: id ?? this.id,
-      fullName:
-          fullName ?? this.fullName,
+      fullName: fullName ?? this.fullName,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
       email: email ?? this.email,
-      profileImage: profileImage ??
-          this.profileImage,
-      isProfileCompleted:
-          isProfileCompleted ??
-              this.isProfileCompleted,
+      profileImage: profileImage ?? this.profileImage,
+      isProfileCompleted: isProfileCompleted ?? this.isProfileCompleted,
       isOnboardingCompleted:
-          isOnboardingCompleted ??
-              this.isOnboardingCompleted,
-      isCgmConnected:
-          isCgmConnected ??
-              this.isCgmConnected,
+          isOnboardingCompleted ?? this.isOnboardingCompleted,
+      isCgmConnected: isCgmConnected ?? this.isCgmConnected,
     );
   }
 }

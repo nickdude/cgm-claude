@@ -11,12 +11,15 @@ export const uploadFile = async (
       });
     }
 
+    const filePath = `/uploads/${req.file.filename}`;
+
     return res.status(200).json({
       success: true,
       data: {
+        path: filePath,
         url: `${req.protocol}://${req.get(
           "host"
-        )}/uploads/${req.file.filename}`,
+        )}${filePath}`,
       },
     });
   } catch (error) {

@@ -3,6 +3,8 @@ class ProfileModel {
 
   final String fullName;
 
+  final String phoneNumber;
+
   final String email;
 
   final String profileImage;
@@ -14,33 +16,28 @@ class ProfileModel {
   ProfileModel({
     required this.id,
     required this.fullName,
+    required this.phoneNumber,
     required this.email,
     required this.profileImage,
     required this.isProfileCompleted,
     required this.isOnboardingCompleted,
   });
 
-  factory ProfileModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
+  factory ProfileModel.fromJson(Map<String, dynamic> json) {
     return ProfileModel(
       id: json["_id"],
 
-      fullName:
-          json["fullName"] ?? "",
+      fullName: json["fullName"] ?? "",
+
+      phoneNumber: json["phoneNumber"] ?? "",
 
       email: json["email"] ?? "",
 
-      profileImage:
-          json["profileImage"] ?? "",
+      profileImage: json["profileImage"] ?? "",
 
-      isProfileCompleted:
-          json["isProfileCompleted"] ??
-              false,
+      isProfileCompleted: json["isProfileCompleted"] ?? false,
 
-      isOnboardingCompleted:
-          json["isOnboardingCompleted"] ??
-              false,
+      isOnboardingCompleted: json["isOnboardingCompleted"] ?? false,
     );
   }
 }

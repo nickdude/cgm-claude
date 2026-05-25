@@ -12,15 +12,13 @@ class AuthRemoteDatasource {
     return await dio.post(
       "/auth/login",
 
-      data: {
-        "email": email,
-        "password": password,
-      },
+      data: {"email": email, "password": password},
     );
   }
 
   Future<Response> register({
     required String fullName,
+    required String phoneNumber,
     required String email,
     required String password,
   }) async {
@@ -29,22 +27,15 @@ class AuthRemoteDatasource {
 
       data: {
         "fullName": fullName,
+        "phoneNumber": phoneNumber,
         "email": email,
         "password": password,
       },
     );
   }
 
-  Future<Response> forgotPassword({
-    required String email,
-  }) async {
-    return await dio.post(
-      "/auth/forgot-password",
-
-      data: {
-        "email": email,
-      },
-    );
+  Future<Response> forgotPassword({required String email}) async {
+    return await dio.post("/auth/forgot-password", data: {"email": email});
   }
 
   Future<Response> resetPassword({
@@ -54,9 +45,7 @@ class AuthRemoteDatasource {
     return await dio.post(
       "/auth/reset-password/$token",
 
-      data: {
-        "password": password,
-      },
+      data: {"password": password},
     );
   }
 }

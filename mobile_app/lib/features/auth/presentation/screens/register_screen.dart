@@ -14,29 +14,27 @@ import '../widgets/auth_text_field.dart';
 
 import 'verify_email_screen.dart';
 
-class RegisterScreen
-    extends StatefulWidget {
+class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
   @override
-  State<RegisterScreen> createState() =>
-      _RegisterScreenState();
+  State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState
-    extends State<RegisterScreen> {
-  final fullNameController =
-      TextEditingController();
+class _RegisterScreenState extends State<RegisterScreen> {
+  final fullNameController = TextEditingController();
 
-  final emailController =
-      TextEditingController();
+  final phoneNumberController = TextEditingController();
 
-  final passwordController =
-      TextEditingController();
+  final emailController = TextEditingController();
+
+  final passwordController = TextEditingController();
 
   @override
   void dispose() {
     fullNameController.dispose();
+
+    phoneNumberController.dispose();
 
     emailController.dispose();
 
@@ -47,57 +45,52 @@ class _RegisterScreenState
 
   @override
   Widget build(BuildContext context) {
-    final authProvider =
-        context.watch<AuthProvider>();
+    final authProvider = context.watch<AuthProvider>();
 
     return AuthScaffold(
       title: "Create your account",
-      subtitle:
-          "Start monitoring your glucose smarter.",
+      subtitle: "Start monitoring your glucose smarter.",
       showBackButton: true,
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           AuthTextField(
-            controller:
-                fullNameController,
+            controller: fullNameController,
             label: "Full name",
             hint: "Jane Doe",
-            prefixIcon: Icons
-                .person_outline,
-            keyboardType:
-                TextInputType.name,
+            prefixIcon: Icons.person_outline,
+            keyboardType: TextInputType.name,
           ),
 
           const SizedBox(height: 16),
 
           AuthTextField(
-            controller:
-                emailController,
+            controller: phoneNumberController,
+            label: "Phone number",
+            hint: "+1 555 123 4567",
+            prefixIcon: Icons.phone_outlined,
+            keyboardType: TextInputType.phone,
+          ),
+
+          const SizedBox(height: 16),
+
+          AuthTextField(
+            controller: emailController,
             label: "Email",
-            hint:
-                "you@example.com",
-            prefixIcon:
-                Icons.mail_outline,
-            keyboardType:
-                TextInputType
-                    .emailAddress,
+            hint: "you@example.com",
+            prefixIcon: Icons.mail_outline,
+            keyboardType: TextInputType.emailAddress,
           ),
 
           const SizedBox(height: 16),
 
           AuthTextField(
-            controller:
-                passwordController,
+            controller: passwordController,
             label: "Password",
-            hint:
-                "At least 8 characters",
-            prefixIcon:
-                Icons.lock_outline,
+            hint: "At least 8 characters",
+            prefixIcon: Icons.lock_outline,
             obscureText: true,
-            textInputAction:
-                TextInputAction.done,
+            textInputAction: TextInputAction.done,
           ),
 
           const SizedBox(height: 24),
@@ -106,45 +99,25 @@ class _RegisterScreenState
           // version — only the visual wrapper changed.
           AuthPrimaryButton(
             label: "Register",
-            isLoading: authProvider
-                .isLoading,
+            isLoading: authProvider.isLoading,
             onTap: () async {
-              final success =
-                  await authProvider
-                      .register(
-                fullName:
-                    fullNameController
-                        .text
-                        .trim(),
-                email:
-                    emailController
-                        .text
-                        .trim(),
-                password:
-                    passwordController
-                        .text
-                        .trim(),
+              final success = await authProvider.register(
+                fullName: fullNameController.text.trim(),
+                phoneNumber: phoneNumberController.text.trim(),
+                email: emailController.text.trim(),
+                password: passwordController.text.trim(),
               );
 
+              if (!context.mounted) return;
+
               if (success) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      "Verification email sent",
-                    ),
-                  ),
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Verification email sent")),
                 );
 
-                Navigator
-                    .pushReplacement(
+                Navigator.pushReplacement(
                   context,
-                  MaterialPageRoute(
-                    builder:
-                        (_) =>
-                            const VerifyEmailScreen(),
-                  ),
+                  MaterialPageRoute(builder: (_) => const VerifyEmailScreen()),
                 );
               }
             },
@@ -153,13 +126,10 @@ class _RegisterScreenState
           const SizedBox(height: 24),
 
           AuthFooterLink(
-            prefix:
-                "Already have an account?",
+            prefix: "Already have an account?",
             actionText: "Login",
             onTap: () {
-              Navigator.pop(
-                context,
-              );
+              Navigator.pop(context);
             },
           ),
         ],

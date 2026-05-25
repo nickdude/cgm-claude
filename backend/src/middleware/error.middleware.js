@@ -4,9 +4,19 @@ const errorMiddleware = (
   res,
   next
 ) => {
-  return res.status(500).json({
+  const statusCode =
+    err.statusCode ||
+    (err.name === "MulterError" ? 400 : 500);
+
+  const message =
+    err.name === "MulterError" &&
+    err.code === "LIMIT_FILE_SIZE"
+      ? "Image size must be 5MB or less"
+      : err.message;
+
+  return res.status(statusCode).json({
     success: false,
-    message: err.message,
+    message,
   });
 };
 
