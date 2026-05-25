@@ -12,6 +12,8 @@ import '../../features/onboarding/presentation/screens/onboarding_screen.dart';
 
 import '../../features/profile/presentation/screens/profile_setup_screen.dart';
 
+import '../../features/welcome/presentation/screens/welcome_screen.dart';
+
 class AppRouter {
   static Widget resolveHome({
     required String? token,
@@ -19,11 +21,11 @@ class AppRouter {
   }) {
     if (token == null ||
         token.isEmpty) {
-      return const LoginScreen();
+      return const WelcomeScreen();
     }
 
     if (user == null) {
-      return const LoginScreen();
+      return const WelcomeScreen();
     }
 
     if (!user.isProfileCompleted) {

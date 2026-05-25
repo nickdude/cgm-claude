@@ -2,13 +2,15 @@ import 'package:flutter/material.dart';
 
 import 'package:provider/provider.dart';
 
-import '../../../../core/widgets/custom_textfield.dart';
-
-import '../../../../core/widgets/primary_button.dart';
-
 import '../providers/auth_provider.dart';
 
-import '../widgets/auth_header.dart';
+import '../widgets/auth_footer_link.dart';
+
+import '../widgets/auth_primary_button.dart';
+
+import '../widgets/auth_scaffold.dart';
+
+import '../widgets/auth_text_field.dart';
 
 class ForgotPasswordScreen
     extends StatefulWidget {
@@ -28,76 +30,90 @@ class _ForgotPasswordScreenState
       TextEditingController();
 
   @override
+  void dispose() {
+    emailController.dispose();
+
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final authProvider =
         context.watch<AuthProvider>();
 
-    return Scaffold(
-      appBar: AppBar(),
+    return AuthScaffold(
+      title: "Forgot password?",
+      subtitle:
+          "Enter the email you used to sign up — we'll send you a reset link.",
+      showBackButton: true,
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          AuthTextField(
+            controller:
+                emailController,
+            label: "Email",
+            hint:
+                "you@example.com",
+            prefixIcon:
+                Icons.mail_outline,
+            keyboardType:
+                TextInputType
+                    .emailAddress,
+            textInputAction:
+                TextInputAction.done,
+          ),
 
-      body: Padding(
-        padding:
-            const EdgeInsets.all(24),
+          const SizedBox(height: 24),
 
-        child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+          // Business logic preserved verbatim from the previous
+          // version — only the visual wrapper changed.
+          AuthPrimaryButton(
+            label: "Send reset link",
+            isLoading: authProvider
+                .isLoading,
+            onTap: () async {
+              final success =
+                  await authProvider
+                      .forgotPassword(
+                email:
+                    emailController
+                        .text
+                        .trim(),
+              );
 
-          children: [
-            const SizedBox(height: 40),
-
-            const AuthHeader(
-              title: "Forgot Password",
-
-              subtitle:
-                  "We’ll send reset link to your email",
-            ),
-
-            const SizedBox(height: 40),
-
-            CustomTextField(
-              controller:
-                  emailController,
-
-              hint: "Email",
-            ),
-
-            const SizedBox(height: 30),
-
-            PrimaryButton(
-              title: "Send Reset Link",
-
-              isLoading:
-                  authProvider.isLoading,
-
-              onTap: () async {
-                final success =
-                    await authProvider
-                        .forgotPassword(
-                  email:
-                      emailController.text
-                          .trim(),
+              if (success) {
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      "Reset email sent",
+                    ),
+                  ),
                 );
 
-                if (success) {
-                  ScaffoldMessenger.of(
-                          context)
-                      .showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        "Reset email sent",
-                      ),
-                    ),
-                  );
+                Navigator.pop(
+                  context,
+                );
+              }
+            },
+          ),
 
-                  Navigator.pop(
-                    context,
-                  );
-                }
-              },
-            ),
-          ],
-        ),
+          const SizedBox(height: 24),
+
+          AuthFooterLink(
+            prefix:
+                "Remember your password?",
+            actionText: "Login",
+            onTap: () {
+              Navigator.pop(
+                context,
+              );
+            },
+          ),
+        ],
       ),
     );
   }

@@ -6,7 +6,7 @@ import '../../../../app/theme/app_colors.dart';
 
 import '../../../auth/presentation/providers/auth_provider.dart';
 
-import '../../../auth/presentation/screens/login_screen.dart';
+import '../../../welcome/presentation/screens/welcome_screen.dart';
 
 import '../../../cgm/connect/presentation/providers/cgm_provider.dart';
 
@@ -126,7 +126,7 @@ class ProfileScreen
       context,
       MaterialPageRoute(
         builder: (_) =>
-            const LoginScreen(),
+            const WelcomeScreen(),
       ),
       (route) => false,
     );
