@@ -96,14 +96,9 @@ class CGMDashboardProvider
       ),
     );
 
-    // Keep the most recent 100 to bound chart width.
-    if (fetched.length > 100) {
-      readings = fetched.sublist(
-        fetched.length - 100,
-      );
-    } else {
-      readings = fetched;
-    }
+    // Keep readings from the last 7 days so the per-day filter on
+    // the dashboard week strip has data for every visible weekday.
+    readings = _capToWindow(fetched);
 
     if (readings.isNotEmpty) {
       final latest = readings.last;
@@ -236,20 +231,29 @@ class CGMDashboardProvider
   void _mergeReadings(
     List<CgmReadingModel> incoming,
   ) {
-    final byTime =
-        <int, CgmReadingModel>{};
+    // Dedupe by backend id when present (each row in the DB is
+    // distinct), and by `${ms}_${value}` for not-yet-persisted local
+    // readings — this is precise enough to drop true duplicates while
+    // preserving distinct readings that share a millisecond timestamp.
+    final byKey =
+        <String, CgmReadingModel>{};
+
+    String keyOf(CgmReadingModel r) {
+      if (r.id != null && r.id!.isNotEmpty) {
+        return 'id:${r.id}';
+      }
+      return 'ts:${r.readingAt.millisecondsSinceEpoch}_${r.glucoseValue}';
+    }
 
     for (final r in readings) {
-      byTime[r.readingAt
-          .millisecondsSinceEpoch] = r;
+      byKey[keyOf(r)] = r;
     }
 
     for (final r in incoming) {
-      byTime[r.readingAt
-          .millisecondsSinceEpoch] = r;
+      byKey[keyOf(r)] = r;
     }
 
-    final merged = byTime.values
+    final merged = byKey.values
         .toList()
       ..sort(
         (a, b) =>
@@ -258,13 +262,53 @@ class CGMDashboardProvider
         ),
       );
 
-    if (merged.length > 100) {
-      readings = merged.sublist(
-        merged.length - 100,
-      );
-    } else {
-      readings = merged;
+    readings = _capToWindow(merged);
+  }
+
+  /// Trims [all] to readings inside the last 7 days, with a 5000-entry
+  /// hard safety cap to bound memory. Older readings drop off so the
+  /// dashboard's week strip + per-day chart stay accurate without
+  /// growing the list forever.
+  List<CgmReadingModel> _capToWindow(
+    List<CgmReadingModel> all,
+  ) {
+    if (all.isEmpty) return const [];
+
+    final now = DateTime.now();
+    final cutoff = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).subtract(const Duration(days: 6));
+
+    final windowed = all
+        .where(
+          (r) => !r.readingAt.isBefore(cutoff),
+        )
+        .toList();
+
+    // If the backend has only historical readings and none in the
+    // last week (e.g. fresh-installed app + test data), fall back to
+    // showing whatever we have so the screen isn't blank.
+    final result = windowed.isEmpty ? all : windowed;
+
+    // The 7-day window is the natural bound (~7×288=2k for a real
+    // sensor). Hard cap is just a runaway-data guardrail; when it
+    // trips we downsample evenly across the list so the oldest days
+    // don't get evicted.
+    const hardCap = 4000;
+    if (result.length <= hardCap) {
+      return result;
     }
+
+    final step = result.length / hardCap;
+    final sampled = <CgmReadingModel>[];
+    var i = 0.0;
+    while (i < result.length) {
+      sampled.add(result[i.toInt()]);
+      i += step;
+    }
+    return sampled;
   }
 
   void _updateAlerts() {

@@ -74,38 +74,45 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   double? _parseDouble(String value) => double.tryParse(value.trim());
 
-  Future<void> _goNext() async {
-    if (!_validateCurrentStep()) {
-      _showMessage(_validationMessageForStep());
-      return;
+  Map<String, dynamic> _buildPayload({required bool withFallbacks}) {
+    final age = _parseInt(ageController.text);
+    final height = _parseDouble(heightController.text);
+    final weight = _parseDouble(weightController.text);
+    final diagnosedYear = _parseInt(diagnosedYearController.text);
+
+    final resolvedAge = age ?? (withFallbacks ? 18 : null);
+    final resolvedHeight = height ?? (withFallbacks ? 5.5 : null);
+    final resolvedWeight = weight ?? (withFallbacks ? 70.0 : null);
+    final resolvedDiagnosedYear =
+        diagnosedYear ?? (withFallbacks ? DateTime.now().year : null);
+
+    if (resolvedAge == null ||
+        resolvedHeight == null ||
+        resolvedWeight == null ||
+        resolvedDiagnosedYear == null) {
+      throw StateError('Missing required onboarding values');
     }
 
-    if (currentStep < totalSteps - 1) {
-      setState(() {
-        currentStep += 1;
-      });
-      return;
-    }
-
-    final provider = context.read<OnboardingProvider>();
-
-    final payload = {
-      "age": _parseInt(ageController.text)!,
+    return {
+      "age": resolvedAge,
       "gender": gender,
       "diabetesType": diabetesType,
-      "height": _parseDouble(heightController.text)!,
-      "weight": _parseDouble(weightController.text)!,
+      "height": resolvedHeight,
+      "weight": resolvedWeight,
       "insulinUsage": insulinUsage,
-      "diagnosedYear": _parseInt(diagnosedYearController.text)!,
+      "diagnosedYear": resolvedDiagnosedYear,
       "activityLevel": activityLevel,
     };
+  }
+
+  Future<void> _completeOnboarding({required Map<String, dynamic> payload}) async {
+    final provider = context.read<OnboardingProvider>();
 
     final success = await provider.submit(data: payload);
 
     if (!mounted) return;
 
     final auth = context.read<AuthProvider>();
-
     await auth.markOnboardingCompleted();
 
     if (!mounted) return;
@@ -121,6 +128,38 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (!mounted) return;
 
     await AppRouter.goToHome(context, token: token, user: auth.currentUser);
+  }
+
+  Future<void> _skipStep() async {
+    final provider = context.read<OnboardingProvider>();
+    if (provider.isLoading) return;
+
+    if (currentStep < totalSteps - 1) {
+      setState(() {
+        currentStep += 1;
+      });
+      return;
+    }
+
+    final payload = _buildPayload(withFallbacks: true);
+    await _completeOnboarding(payload: payload);
+  }
+
+  Future<void> _goNext() async {
+    if (!_validateCurrentStep()) {
+      _showMessage(_validationMessageForStep());
+      return;
+    }
+
+    if (currentStep < totalSteps - 1) {
+      setState(() {
+        currentStep += 1;
+      });
+      return;
+    }
+
+    final payload = _buildPayload(withFallbacks: false);
+    await _completeOnboarding(payload: payload);
   }
 
   void _goBack() {
@@ -226,6 +265,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 ),
                               ],
                             ),
+                          ),
+                          TextButton(
+                            onPressed: provider.isLoading ? null : _skipStep,
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppColors.textSecondary,
+                              textStyle: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            child: const Text('Skip'),
                           ),
                         ],
                       ),
@@ -345,7 +395,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             "Type 2 Diabetes",
             "Gestational Diabetes",
             "Special Diabetes",
-            "Other",
+            "None of the above",
           ],
           selectedValue: diabetesType,
           onSelected: (value) {

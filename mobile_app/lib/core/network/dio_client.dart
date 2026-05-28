@@ -6,7 +6,7 @@ class DioClient {
   static final Dio dio = Dio(
     BaseOptions(
       baseUrl:
-          "https://cgm-app.duckdns.org/api",
+          "http://192.168.1.6:5001/api",
 
       headers: {
         "Content-Type":

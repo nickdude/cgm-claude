@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'package:provider/provider.dart';
 
+import '../../../../app/constants/app_assets.dart';
+
 import '../../../../app/router/app_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
@@ -79,20 +81,47 @@ class _SplashScreenState
           ),
         ),
 
-        child: const Column(
+        child: Column(
           mainAxisAlignment:
               MainAxisAlignment.center,
 
           children: [
-            Icon(
-              Icons.monitor_heart,
-              color: Colors.white,
-              size: 100,
+            // Brand mark sits on a soft white plate so the multi-colour
+            // logo reads cleanly against the gradient background.
+            Container(
+              width: 132,
+              height: 132,
+              padding: const EdgeInsets
+                  .all(18),
+              decoration:
+                  const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape
+                    .circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(
+                      0x33000000,
+                    ),
+                    blurRadius: 24,
+                    offset: Offset(
+                      0,
+                      8,
+                    ),
+                  ),
+                ],
+              ),
+              child: Image.asset(
+                AppAssets.appLogo,
+                fit: BoxFit.contain,
+              ),
             ),
 
-            SizedBox(height: 24),
+            const SizedBox(
+              height: 24,
+            ),
 
-            Text(
+            const Text(
               "CGM Platform",
               style: TextStyle(
                 color: Colors.white,
@@ -102,9 +131,11 @@ class _SplashScreenState
               ),
             ),
 
-            SizedBox(height: 16),
+            const SizedBox(
+              height: 16,
+            ),
 
-            SizedBox(
+            const SizedBox(
               height: 24,
               width: 24,
               child:

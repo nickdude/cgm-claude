@@ -42,8 +42,18 @@ class _GlucoseChartState extends State<GlucoseChart> {
     final minX = 0.0;
     final maxX = (widget.spots.length - 1).toDouble();
     final xSpanCount = math.max(widget.spots.length - 1, 1).toDouble();
-    final yMin = (minValue - 18).clamp(50.0, 220.0).toDouble();
-    final yMax = (maxValue + 24).clamp(90.0, 280.0).toDouble();
+    // Dynamic y-axis — the visible range hugs the actual readings so
+    // extreme spikes (≥240 mg/dL) and severe lows (<60) aren't clipped.
+    // The clamp floors/ceilings only guard against zero-height domains
+    // when all readings sit close together.
+    final rawSpan = (maxValue - minValue).abs();
+    final pad = (rawSpan * 0.12).clamp(12.0, 40.0).toDouble();
+    final yMin = (minValue - pad).clamp(20.0, 180.0).toDouble();
+    final yMax = (maxValue + pad).clamp(140.0, 600.0).toDouble();
+    // Compute a nice round interval so ~5 labels show regardless of
+    // how tall the visible range is.
+    final ySpan = yMax - yMin;
+    final yInterval = _niceInterval(ySpan / 5);
     final chartWidth = math.max(
       widget.spots.length * _basePointSpacing * _timeZoom,
       360.0,
@@ -55,49 +65,20 @@ class _GlucoseChartState extends State<GlucoseChart> {
 
     return Container(
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFF8FBFF), Color(0xFFF4F7FC)],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: const Color(0xFFE2EAF4)),
+        color: const Color(0xFFFAFBFC),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
-            child: Row(
-              children: [
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Glucose trend',
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Pinch with two fingers to zoom the time axis',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 11.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                _ZoomChip(
-                  label: '${(_timeZoom * 100).round()}%',
-                  icon: Icons.schedule_rounded,
-                ),
-              ],
+            padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: _ZoomChip(
+                label: '${(_timeZoom * 100).round()}%',
+                icon: Icons.schedule_rounded,
+              ),
             ),
           ),
           Expanded(
@@ -152,30 +133,68 @@ class _GlucoseChartState extends State<GlucoseChart> {
                                     enabled: true,
                                     handleBuiltInTouches: true,
                                     touchSpotThreshold: 18,
+                                    getTouchedSpotIndicator:
+                                        (barData, indexes) {
+                                      return indexes.map((i) {
+                                        return TouchedSpotIndicatorData(
+                                          FlLine(
+                                            color: const Color(0xFF1F8B4C)
+                                                .withValues(alpha: 0.35),
+                                            strokeWidth: 1.4,
+                                            dashArray: [4, 4],
+                                          ),
+                                          FlDotData(
+                                            getDotPainter:
+                                                (spot, percent, bar, idx) {
+                                              return FlDotCirclePainter(
+                                                radius: 6,
+                                                color: Colors.white,
+                                                strokeWidth: 3,
+                                                strokeColor:
+                                                    const Color(0xFF1F8B4C),
+                                              );
+                                            },
+                                          ),
+                                        );
+                                      }).toList();
+                                    },
                                     touchTooltipData: LineTouchTooltipData(
-                                      tooltipRoundedRadius: 14,
+                                      tooltipRoundedRadius: 999,
                                       tooltipPadding:
                                           const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 8,
+                                        horizontal: 14,
+                                        vertical: 10,
                                       ),
+                                      tooltipMargin: 12,
                                       getTooltipColor: (_) =>
-                                          const Color(0xFF101828),
+                                          const Color(0xFF1B1F23),
                                       getTooltipItems: (touchedSpots) {
                                         return touchedSpots.map((spot) {
                                           final index = spot.x.round();
-                                          final timestamp = _timestampForIndex(index);
+                                          final timestamp =
+                                              _timestampForIndex(index);
                                           final formattedTime = DateFormat(
-                                            'MMM d, h:mm a',
+                                            'h:mm a',
                                           ).format(timestamp);
 
                                           return LineTooltipItem(
-                                            '$formattedTime\n${spot.y.toStringAsFixed(0)} mg/dL',
+                                            '${spot.y.toStringAsFixed(0)} mg/dL',
                                             const TextStyle(
                                               color: Colors.white,
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 12,
+                                              fontWeight: FontWeight.w800,
+                                              fontSize: 13,
                                             ),
+                                            children: [
+                                              TextSpan(
+                                                text: '  ·  $formattedTime',
+                                                style: TextStyle(
+                                                  color: Colors.white
+                                                      .withValues(alpha: 0.7),
+                                                  fontWeight: FontWeight.w500,
+                                                  fontSize: 11.5,
+                                                ),
+                                              ),
+                                            ],
                                           );
                                         }).toList();
                                       },
@@ -185,48 +204,37 @@ class _GlucoseChartState extends State<GlucoseChart> {
                                     show: true,
                                     drawVerticalLine: false,
                                     horizontalInterval:
-                                        ((yMax - yMin) / 4).clamp(
-                                      20,
-                                      40,
-                                    ),
+                                        yInterval,
                                     getDrawingHorizontalLine: (value) {
-                                      return FlLine(
-                                        color: const Color(0xFFD8E1ED),
-                                        strokeWidth: 1,
-                                        dashArray: [6, 6],
+                                      return const FlLine(
+                                        color: Color(0xFFE6E8EC),
+                                        strokeWidth: 0.8,
+                                        dashArray: [4, 6],
                                       );
                                     },
                                   ),
-                                  borderData: FlBorderData(
-                                    show: true,
-                                    border: const Border(
-                                      left: BorderSide(
-                                        color: Color(0xFFCBD5E1),
-                                        width: 1.2,
-                                      ),
-                                      bottom: BorderSide(
-                                        color: Color(0xFFCBD5E1),
-                                        width: 1.2,
-                                      ),
-                                    ),
-                                  ),
+                                  borderData: FlBorderData(show: false),
                                   extraLinesData: ExtraLinesData(
                                     horizontalLines: [
                                       HorizontalLine(
                                         y: 70,
-                                        color: AppColors.success.withValues(
-                                          alpha: 0.4,
-                                        ),
-                                        strokeWidth: 1.4,
-                                        dashArray: [6, 6],
+                                        color: const Color(0xFF1F8B4C)
+                                            .withValues(alpha: 0.35),
+                                        strokeWidth: 1.2,
+                                        dashArray: [4, 6],
+                                      ),
+                                      HorizontalLine(
+                                        y: 110,
+                                        color: const Color(0xFFA0A6AE),
+                                        strokeWidth: 0.8,
+                                        dashArray: [4, 6],
                                       ),
                                       HorizontalLine(
                                         y: 180,
-                                        color: AppColors.warning.withValues(
-                                          alpha: 0.4,
-                                        ),
-                                        strokeWidth: 1.4,
-                                        dashArray: [6, 6],
+                                        color: const Color(0xFFE89E2A)
+                                            .withValues(alpha: 0.45),
+                                        strokeWidth: 1.2,
+                                        dashArray: [4, 6],
                                       ),
                                     ],
                                   ),
@@ -338,47 +346,22 @@ class _GlucoseChartState extends State<GlucoseChart> {
                                       curveSmoothness: 0.32,
                                       preventCurveOverShooting: true,
                                       isStrokeCapRound: true,
-                                      barWidth: 4.5,
-                                      color: const Color(0xFF2F80ED),
-                                      gradient: const LinearGradient(
-                                        colors: [
-                                          Color(0xFF5CA4FF),
-                                          Color(0xFF2F80ED),
-                                        ],
-                                        begin: Alignment.centerLeft,
-                                        end: Alignment.centerRight,
-                                      ),
+                                      barWidth: 2.6,
+                                      color: const Color(0xFF1F8B4C),
                                       belowBarData: BarAreaData(
                                         show: true,
                                         gradient: LinearGradient(
                                           colors: [
-                                            const Color(
-                                              0xFF2F80ED,
-                                            ).withValues(alpha: 0.26),
-                                            const Color(
-                                              0xFF2F80ED,
-                                            ).withValues(alpha: 0.02),
+                                            const Color(0xFF1F8B4C)
+                                                .withValues(alpha: 0.22),
+                                            const Color(0xFF1F8B4C)
+                                                .withValues(alpha: 0.0),
                                           ],
                                           begin: Alignment.topCenter,
                                           end: Alignment.bottomCenter,
                                         ),
                                       ),
-                                      dotData: FlDotData(
-                                        show: true,
-                                        getDotPainter: (spot, percent, barData, index) {
-                                          return FlDotCirclePainter(
-                                            radius: 3.2,
-                                            color: Colors.white,
-                                            strokeWidth: 2,
-                                            strokeColor: const Color(0xFF2F80ED),
-                                          );
-                                        },
-                                      ),
-                                      shadow: const Shadow(
-                                        color: Color(0x552F80ED),
-                                        blurRadius: 16,
-                                        offset: Offset(0, 6),
-                                      ),
+                                      dotData: const FlDotData(show: false),
                                     ),
                                   ],
                                 ),
@@ -422,6 +405,19 @@ class _GlucoseChartState extends State<GlucoseChart> {
 
     final timestamp = _timestampForIndex(xValue.round());
     return DateFormat('MMM d').format(timestamp);
+  }
+
+  /// Rounds [raw] up to the next "nice" axis step (10, 20, 25, 50, 100…)
+  /// so the y-axis grid lands on multiples a clinician would expect to
+  /// read at a glance, regardless of how tall the dynamic range is.
+  static double _niceInterval(double raw) {
+    if (raw <= 0 || raw.isNaN || raw.isInfinite) return 20;
+
+    const steps = [10, 20, 25, 50, 100, 150, 200];
+    for (final s in steps) {
+      if (raw <= s) return s.toDouble();
+    }
+    return 250;
   }
 }
 

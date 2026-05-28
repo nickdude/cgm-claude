@@ -76,6 +76,25 @@ dev_dependencies:
   freezed:
   json_serializable:
 
+  flutter_launcher_icons: ^0.13.1
+
+# Launcher icon configuration. Source asset is the 1024x1024 brand
+# mark; flutter_launcher_icons generates platform-specific sizes.
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  remove_alpha_ios: true
+  background_color_ios: "#FFFFFF"
+  image_path: "assets/logos/app_icon_1024.png"
+  min_sdk_android: 26
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/logos/BIONIME_4X_LOGO_NoText_NoBG.png"
+  web:
+    generate: true
+    image_path: "assets/logos/app_icon_1024.png"
+    background_color: "#FFFFFF"
+    theme_color: "#2563EB"
+
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your
@@ -100,6 +119,7 @@ flutter:
     - assets/images/discover/
     - assets/images/device-setup/
     - assets/icons/
+    - assets/logos/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

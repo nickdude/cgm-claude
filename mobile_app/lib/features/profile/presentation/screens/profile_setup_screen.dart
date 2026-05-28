@@ -6,12 +6,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/router/app_router.dart';
+import '../../../../app/theme/app_colors.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../../../core/storage/storage_service.dart';
 
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../auth/presentation/widgets/auth_primary_button.dart';
-import '../../../auth/presentation/widgets/auth_scaffold.dart';
 import '../../../auth/presentation/widgets/auth_text_field.dart';
 import '../../data/repository/profile_repository_impl.dart';
 
@@ -264,102 +264,220 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
     final imageUrl = _resolveImageUrl(profileImagePath);
 
-    return AuthScaffold(
-      title: widget.isEditMode ? "Edit profile" : "Complete your profile",
-      subtitle: widget.isEditMode
-          ? "Update your details and profile photo."
-          : "Add your details to personalize your CGM experience.",
-      showBackButton: widget.isEditMode,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Stack(
-              children: [
-                Container(
-                  width: 110,
-                  height: 110,
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: const Color(0xFFE6E8EC),
-                      width: 2,
-                    ),
-                    shape: BoxShape.circle,
-                  ),
-                  child: ClipOval(
-                    child: localImagePath != null
-                        ? Image.file(File(localImagePath), fit: BoxFit.cover)
-                        : imageUrl.isNotEmpty
-                        ? Image.network(
-                            imageUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const Icon(
-                              Icons.person,
-                              size: 48,
-                              color: Colors.grey,
-                            ),
-                          )
-                        : const Icon(
-                            Icons.person,
-                            size: 48,
-                            color: Colors.grey,
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F6FB),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  if (widget.isEditMode)
+                    Material(
+                      color: Colors.white,
+                      shape: const CircleBorder(),
+                      elevation: 1,
+                      shadowColor: Colors.black12,
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: () => Navigator.maybePop(context),
+                        child: const SizedBox(
+                          height: 42,
+                          width: 42,
+                          child: Icon(
+                            Icons.arrow_back_rounded,
+                            color: Color(0xFF111827),
                           ),
-                  ),
-                ),
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: Material(
-                    color: const Color(0xFF1E88E5),
-                    shape: const CircleBorder(),
-                    child: InkWell(
-                      customBorder: const CircleBorder(),
-                      onTap: _pickProfileImage,
-                      child: const Padding(
-                        padding: EdgeInsets.all(8),
-                        child: Icon(
-                          Icons.camera_alt,
-                          color: Colors.white,
-                          size: 18,
                         ),
                       ),
                     ),
+                  if (widget.isEditMode) const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Profile',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF111827),
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Update your details and profile photo.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF0F172A), Color(0xFF1D4ED8)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(28),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x240F172A),
+                      blurRadius: 24,
+                      offset: Offset(0, 12),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.18),
+                        ),
+                      ),
+                      child: Stack(
+                        children: [
+                          Container(
+                            width: 92,
+                            height: 92,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white,
+                              border: Border.all(color: Colors.white, width: 1),
+                            ),
+                            child: ClipOval(
+                              child: localImagePath != null
+                                  ? Image.file(File(localImagePath), fit: BoxFit.cover)
+                                  : imageUrl.isNotEmpty
+                                  ? Image.network(
+                                      imageUrl,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => const Icon(
+                                        Icons.person,
+                                        size: 44,
+                                        color: Colors.grey,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.person,
+                                      size: 44,
+                                      color: Colors.grey,
+                                    ),
+                            ),
+                          ),
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Material(
+                              color: const Color(0xFF1E88E5),
+                              shape: const CircleBorder(),
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: _pickProfileImage,
+                                child: const Padding(
+                                  padding: EdgeInsets.all(8),
+                                  child: Icon(
+                                    Icons.camera_alt,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Premium profile setup',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          SizedBox(height: 6),
+                          Text(
+                            'Keep your profile photo and details up to date.',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 13,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: const Color(0xFFE8EDF4)),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x0B0F172A),
+                      blurRadius: 20,
+                      offset: Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    AuthTextField(
+                      controller: fullNameController,
+                      label: 'Full name',
+                      hint: 'Jane Doe',
+                      prefixIcon: Icons.person_outline,
+                      keyboardType: TextInputType.name,
+                    ),
+                    const SizedBox(height: 16),
+                    AuthTextField(
+                      controller: phoneNumberController,
+                      label: 'Phone number',
+                      hint: '+1 555 123 4567',
+                      prefixIcon: Icons.phone_outlined,
+                      keyboardType: TextInputType.phone,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _continue(),
+                    ),
+                    const SizedBox(height: 24),
+                    AuthPrimaryButton(
+                      label: widget.isEditMode ? 'Save changes' : 'Continue',
+                      isLoading: isSubmitting,
+                      onTap: _continue,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-
-          const SizedBox(height: 20),
-
-          AuthTextField(
-            controller: fullNameController,
-            label: "Full name",
-            hint: "Jane Doe",
-            prefixIcon: Icons.person_outline,
-            keyboardType: TextInputType.name,
-          ),
-
-          const SizedBox(height: 16),
-
-          AuthTextField(
-            controller: phoneNumberController,
-            label: "Phone number",
-            hint: "+1 555 123 4567",
-            prefixIcon: Icons.phone_outlined,
-            keyboardType: TextInputType.phone,
-            textInputAction: TextInputAction.done,
-            onSubmitted: (_) => _continue(),
-          ),
-
-          const SizedBox(height: 24),
-
-          AuthPrimaryButton(
-            label: widget.isEditMode ? "Save changes" : "Continue",
-            isLoading: isSubmitting,
-            onTap: _continue,
-          ),
-        ],
+        ),
       ),
     );
   }
