@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
-class GlucoseCard
-    extends StatelessWidget {
+class GlucoseCard extends StatelessWidget {
   final int? glucose;
 
   final String trend;
@@ -33,13 +32,11 @@ class GlucoseCard
       return "Waiting for sensor";
     }
 
-    final diff = DateTime.now()
-        .difference(lastReadingAt!);
+    final diff = DateTime.now().difference(lastReadingAt!);
 
     // Anything older than a week is almost certainly bad clock
     // data from the sensor; don't render it.
-    if (diff.inDays > 7 ||
-        diff.isNegative) {
+    if (diff.inDays > 7 || diff.isNegative) {
       return "Just now";
     }
 
@@ -64,104 +61,173 @@ class GlucoseCard
 
   @override
   Widget build(BuildContext context) {
-    final display = glucose
-            ?.toString() ??
-        "--";
+    final display = glucose?.toString() ?? "--";
+
+    final trendColor = _trendColor();
 
     return Container(
       width: double.infinity,
-      padding:
-          const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.blue.shade400,
-            Colors.blue.shade600,
-          ],
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0F172A), Color(0xFF1D4ED8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        borderRadius:
-            BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x260F172A),
+            blurRadius: 24,
+            offset: Offset(0, 16),
+          ),
+        ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "Current Glucose",
-            style: TextStyle(
-              color: Colors.white70,
-            ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.16),
+                  ),
+                ),
+                child: const Text(
+                  "Live reading",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: trendColor.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  children: [
+                    Icon(_trendIcon(), color: trendColor, size: 16),
+                    const SizedBox(width: 6),
+                    Text(
+                      trend,
+                      style: TextStyle(
+                        color: trendColor,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
 
           const SizedBox(height: 16),
 
           Text(
-            display,
-            style: const TextStyle(
-              fontSize: 72,
-              fontWeight:
-                  FontWeight.bold,
-              color: Colors.white,
-              height: 1.0,
+            "Current Glucose",
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.82),
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.2,
             ),
           ),
 
-          const SizedBox(height: 4),
+          const SizedBox(height: 10),
 
-          const Text(
-            "mg/dL",
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 14,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                display,
+                style: const TextStyle(
+                  fontSize: 72,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  height: 1.0,
+                  letterSpacing: -2.0,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text(
+                  "mg/dL",
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.78),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
           ),
 
           const SizedBox(height: 14),
 
           Container(
-            padding: const EdgeInsets
-                .symmetric(
-              horizontal: 16,
-              vertical: 8,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
-              color: Colors.white24,
-              borderRadius:
-                  BorderRadius
-                      .circular(30),
+              color: Colors.white.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
             ),
             child: Row(
-              mainAxisSize:
-                  MainAxisSize.min,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  _trendIcon(),
-                  color: Colors.white,
-                ),
-                const SizedBox(
-                  width: 8,
-                ),
+                Icon(Icons.schedule_rounded, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
                 Text(
-                  trend,
-                  style:
-                      const TextStyle(
-                    color:
-                        Colors.white,
+                  _ago(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
             ),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
 
           Text(
-            _ago(),
-            style: const TextStyle(
-              color: Colors.white70,
+            "Tap the chart below to inspect trends across the day.",
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.72),
               fontSize: 12,
+              height: 1.4,
             ),
           ),
         ],
       ),
     );
+  }
+
+  Color _trendColor() {
+    switch (trend.toLowerCase()) {
+      case "rising":
+      case "rising fast":
+        return const Color(0xFFFFC857);
+      case "falling":
+      case "falling fast":
+        return const Color(0xFFFB7185);
+      default:
+        return const Color(0xFF86EFAC);
+    }
   }
 }

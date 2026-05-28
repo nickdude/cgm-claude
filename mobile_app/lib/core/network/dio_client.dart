@@ -6,7 +6,7 @@ class DioClient {
   static final Dio dio = Dio(
     BaseOptions(
       baseUrl:
-          "http://192.168.1.8:5001/api",
+          "http://192.168.1.15:5001/api",
 
       headers: {
         "Content-Type":

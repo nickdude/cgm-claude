@@ -59,9 +59,7 @@ class CGMDashboardProvider
 
     final spots = <FlSpot>[];
 
-    for (var i = 0;
-        i < readings.length;
-        i++) {
+    for (var i = 0; i < readings.length; i++) {
       spots.add(
         FlSpot(
           i.toDouble(),
@@ -144,13 +142,17 @@ class CGMDashboardProvider
     Map<String, dynamic> event,
   ) {
     if (event["type"] !=
-        "glucoseData") return;
+        "glucoseData") {
+      return;
+    }
 
     final raw = (event["bloodSugars"]
             as List?) ??
         const [];
 
-    if (raw.isEmpty) return;
+    if (raw.isEmpty) {
+      return;
+    }
 
     // Convert SDK readings → typed local model.
     final incoming =

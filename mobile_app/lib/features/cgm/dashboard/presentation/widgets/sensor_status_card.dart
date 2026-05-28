@@ -9,15 +9,11 @@ import '../../../connect/presentation/providers/cgm_provider.dart';
 
 import '../../../connect/presentation/screens/cgm_scan_screen.dart';
 
-class SensorStatusCard
-    extends StatelessWidget {
+class SensorStatusCard extends StatelessWidget {
   const SensorStatusCard({super.key});
 
-  String _subtitleFor(
-    CGMProvider provider,
-  ) {
-    final device =
-        provider.activeDevice;
+  String _subtitleFor(CGMProvider provider) {
+    final device = provider.activeDevice;
 
     if (device == null) {
       return "No device paired";
@@ -26,18 +22,14 @@ class SensorStatusCard
     return "${device.deviceName} • ${device.serialNumber}";
   }
 
-  Widget _trailingFor(
-    CGMProvider provider,
-  ) {
+  Widget _trailingFor(CGMProvider provider) {
     if (provider.isReconnecting) {
       return SizedBox(
         height: 18,
         width: 18,
-        child:
-            CircularProgressIndicator(
+        child: CircularProgressIndicator(
           strokeWidth: 2.5,
-          color:
-              provider.statusColor,
+          color: provider.statusColor,
         ),
       );
     }
@@ -52,20 +44,12 @@ class SensorStatusCard
     );
   }
 
-  Widget _actionFor(
-    BuildContext context,
-    CGMProvider provider,
-  ) {
-    switch (
-        provider.connectionStatus) {
-      case CGMConnectionStatus
-            .bluetoothOff:
+  Widget _actionFor(BuildContext context, CGMProvider provider) {
+    switch (provider.connectionStatus) {
+      case CGMConnectionStatus.bluetoothOff:
         return _ActionRow(
-          message: provider
-                  .lastError ??
-              "Turn on Bluetooth to reconnect.",
-          buttonLabel:
-              "Open Bluetooth Settings",
+          message: provider.lastError ?? "Turn on Bluetooth to reconnect.",
+          buttonLabel: "Open Bluetooth Settings",
           onTap: () async {
             // permission_handler can open the system app settings;
             // the user toggles BT from there. Direct BT-enable
@@ -73,202 +57,129 @@ class SensorStatusCard
             await openAppSettings();
           },
         );
-      case CGMConnectionStatus
-            .permissionsDenied:
+      case CGMConnectionStatus.permissionsDenied:
         return _ActionRow(
-          message:
-              "Bluetooth & nearby-device permissions are required.",
-          buttonLabel:
-              "Open Settings",
-          onTap: () =>
-              openAppSettings(),
+          message: "Bluetooth & nearby-device permissions are required.",
+          buttonLabel: "Open Settings",
+          onTap: () => openAppSettings(),
         );
-      case CGMConnectionStatus
-            .outOfRange:
+      case CGMConnectionStatus.outOfRange:
         return _ActionRow(
-          message:
-              "Sensor is out of range. We'll keep trying.",
-          buttonLabel:
-              "Retry now",
-          onTap: () => provider
-              .retryReconnect(),
+          message: "Sensor is out of range. We'll keep trying.",
+          buttonLabel: "Retry now",
+          onTap: () => provider.retryReconnect(),
         );
-      case CGMConnectionStatus
-            .failed:
-      case CGMConnectionStatus
-            .authFailed:
+      case CGMConnectionStatus.failed:
+      case CGMConnectionStatus.authFailed:
         return _ActionRow(
-          message: provider
-                  .lastError ??
-              "Something went wrong.",
-          buttonLabel:
-              "Retry",
-          onTap: () => provider
-              .retryReconnect(),
+          message: provider.lastError ?? "Something went wrong.",
+          buttonLabel: "Retry",
+          onTap: () => provider.retryReconnect(),
         );
-      case CGMConnectionStatus
-            .disconnected:
-        if (provider
-                .activeDevice ==
-            null) {
+      case CGMConnectionStatus.disconnected:
+        if (provider.activeDevice == null) {
           return _ActionRow(
-            message:
-                "Pair your CGM sensor to start monitoring.",
-            buttonLabel:
-                "Pair sensor",
+            message: "Pair your CGM sensor to start monitoring.",
+            buttonLabel: "Pair sensor",
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder:
-                      (_) =>
-                          const CGMScanScreen(),
-                ),
+                MaterialPageRoute(builder: (_) => const CGMScanScreen()),
               );
             },
           );
         }
 
-        return const SizedBox
-            .shrink();
+        return const SizedBox.shrink();
       default:
-        return const SizedBox
-            .shrink();
+        return const SizedBox.shrink();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<CGMProvider>(
-      builder:
-          (context, provider, _) {
-        final device =
-            provider.activeDevice;
+      builder: (context, provider, _) {
+        final device = provider.activeDevice;
 
-        final daysLeft =
-            device == null
-                ? null
-                : device.expiresAt
-                    .difference(
-                      DateTime.now(),
-                    )
-                    .inDays;
+        final daysLeft = device?.expiresAt.difference(DateTime.now()).inDays;
 
         return Container(
-          padding:
-              const EdgeInsets.all(
-            20,
-          ),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius:
-                BorderRadius
-                    .circular(24),
+            gradient: const LinearGradient(
+              colors: [Color(0xFFFFFFFF), Color(0xFFF8FBFF)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: const Color(0xFFE6EEF8)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0D0F172A),
+                blurRadius: 18,
+                offset: Offset(0, 10),
+              ),
+            ],
           ),
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment
-                    .start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
                   Container(
-                    padding:
-                        const EdgeInsets
-                            .all(14),
-                    decoration:
-                        BoxDecoration(
-                      color: provider
-                          .statusColor
-                          .withOpacity(
-                        0.1,
-                      ),
-                      shape:
-                          BoxShape
-                              .circle,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: provider.statusColor.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
                     ),
-                    child: Icon(
-                      Icons.sensors,
-                      color: provider
-                          .statusColor,
-                    ),
+                    child: Icon(Icons.sensors, color: provider.statusColor),
                   ),
-                  const SizedBox(
-                    width: 16,
-                  ),
+                  const SizedBox(width: 14),
                   Expanded(
                     child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment
-                              .start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          provider
-                              .connectionText,
-                          style:
-                              const TextStyle(
-                            fontWeight:
-                                FontWeight
-                                    .bold,
+                          provider.connectionText,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
                           ),
                         ),
-                        const SizedBox(
-                          height: 4,
-                        ),
+                        const SizedBox(height: 4),
                         Text(
-                          _subtitleFor(
-                            provider,
-                          ),
-                          style:
-                              const TextStyle(
-                            color: AppColors
-                                .textSecondary,
-                            fontSize:
-                                12,
+                          _subtitleFor(provider),
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12.5,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  _trailingFor(
-                    provider,
-                  ),
+                  _trailingFor(provider),
                 ],
               ),
 
-              if (device !=
-                  null) ...[
-                const SizedBox(
-                  height: 16,
-                ),
-                const Divider(
-                  height: 1,
-                ),
-                const SizedBox(
-                  height: 12,
-                ),
+              if (device != null) ...[
+                const SizedBox(height: 16),
+                Container(height: 1, color: const Color(0xFFE9EEF6)),
+                const SizedBox(height: 14),
+                _metaRow(label: "Manufacturer", value: device.manufacturer),
                 _metaRow(
-                  label:
-                      "Manufacturer",
-                  value: device
-                      .manufacturer,
-                ),
-                _metaRow(
-                  label:
-                      "Expires in",
-                  value: daysLeft ==
-                          null
+                  label: "Expires in",
+                  value: daysLeft == null
                       ? "--"
                       : daysLeft <= 0
-                          ? "Expired"
-                          : "$daysLeft days",
+                      ? "Expired"
+                      : "$daysLeft days",
                 ),
+                _metaRow(label: "Serial", value: device.serialNumber),
               ],
 
-              _actionFor(
-                context,
-                provider,
-              ),
+              const SizedBox(height: 16),
+              _actionFor(context, provider),
             ],
           ),
         );
@@ -276,34 +187,26 @@ class SensorStatusCard
     );
   }
 
-  Widget _metaRow({
-    required String label,
-    required String value,
-  }) {
+  Widget _metaRow({required String label, required String value}) {
     return Padding(
-      padding:
-          const EdgeInsets.symmetric(
-        vertical: 4,
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
-        mainAxisAlignment:
-            MainAxisAlignment
-                .spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
             label,
             style: const TextStyle(
-              color: AppColors
-                  .textSecondary,
+              color: AppColors.textSecondary,
               fontSize: 13,
+              fontWeight: FontWeight.w600,
             ),
           ),
           Text(
             value,
             style: const TextStyle(
-              fontWeight:
-                  FontWeight.w600,
+              fontWeight: FontWeight.w700,
               fontSize: 13,
+              color: AppColors.textPrimary,
             ),
           ),
         ],
@@ -312,8 +215,7 @@ class SensorStatusCard
   }
 }
 
-class _ActionRow
-    extends StatelessWidget {
+class _ActionRow extends StatelessWidget {
   final String message;
   final String buttonLabel;
   final VoidCallback onTap;
@@ -327,55 +229,41 @@ class _ActionRow
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding:
-          const EdgeInsets.only(
-        top: 12,
-      ),
+      padding: const EdgeInsets.only(top: 12),
       child: Container(
-        padding:
-            const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppColors.primary
-              .withOpacity(0.05),
-          borderRadius:
-              BorderRadius.circular(
-            14,
-          ),
+          color: AppColors.primary.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.08)),
         ),
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment
-                  .start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               message,
               style: const TextStyle(
                 fontSize: 12,
-                color: AppColors
-                    .textSecondary,
+                color: AppColors.textSecondary,
+                height: 1.35,
               ),
             ),
-            const SizedBox(
-              height: 8,
-            ),
+            const SizedBox(height: 10),
             Align(
-              alignment: Alignment
-                  .centerLeft,
+              alignment: Alignment.centerLeft,
               child: TextButton(
                 onPressed: onTap,
-                style: TextButton
-                    .styleFrom(
-                  padding:
-                      EdgeInsets
-                          .zero,
-                  minimumSize:
-                      Size.zero,
-                  tapTargetSize:
-                      MaterialTapTargetSize
-                          .shrinkWrap,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 0,
+                    vertical: 0,
+                  ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 child: Text(
                   buttonLabel,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
               ),
             ),

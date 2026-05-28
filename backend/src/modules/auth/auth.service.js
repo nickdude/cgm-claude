@@ -38,7 +38,11 @@ export const registerService = async (
       Date.now() + 1000 * 60 * 60,
   });
 
-  const verifyUrl = `${process.env.CLIENT_URL}/verify-email/${rawToken}`;
+  const backendBaseUrl =
+    process.env.BACKEND_URL ||
+    `http://localhost:${process.env.PORT || 5001}`;
+
+  const verifyUrl = `${backendBaseUrl}/api/auth/verify-email/${rawToken}`;
 
   await sendEmail(
     user.email,
@@ -143,7 +147,11 @@ export const forgotPasswordService = async (email) => {
 
     await user.save();
 
-    const resetUrl = `${process.env.CLIENT_URL}/reset-password/${rawToken}`;
+    const backendBaseUrl =
+      process.env.BACKEND_URL ||
+      `http://localhost:${process.env.PORT || 5001}`;
+
+    const resetUrl = `${backendBaseUrl}/api/auth/reset-password/${rawToken}`;
 
     await sendEmail(
       user.email,
