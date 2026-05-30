@@ -8,6 +8,7 @@ const allowedMimeTypes = new Set([
   "image/jpeg",
   "image/png",
   "image/webp",
+  "image/jpg",
 ]);
 
 const createUploadError = (message) => {
