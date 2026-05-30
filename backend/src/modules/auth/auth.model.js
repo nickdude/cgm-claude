@@ -22,10 +22,26 @@ const userSchema = new mongoose.Schema(
 
     password: {
       type: String,
-      required: true,
+      default: "",
     },
 
     profileImage: {
+      type: String,
+      default: "",
+    },
+
+    provider: {
+      type: String,
+      enum: [
+        "email",
+        "google",
+        "facebook",
+        "apple",
+      ],
+      default: "email",
+    },
+
+    providerId: {
       type: String,
       default: "",
     },

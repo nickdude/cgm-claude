@@ -16,6 +16,10 @@ import '../widgets/auth_scaffold.dart';
 
 import '../widgets/auth_text_field.dart';
 
+import '../widgets/social_button.dart';
+
+import '../helpers/social_auth_actions.dart';
+
 import 'forgot_password_screen.dart';
 
 import 'register_screen.dart';
@@ -201,6 +205,20 @@ class _LoginScreenState
             isLoading: authProvider
                 .isLoading,
             onTap: _handleLogin,
+          ),
+
+          const SizedBox(height: 24),
+
+          SocialAuthButtons(
+            isLoading: authProvider.isLoading,
+            onGoogleTap: () => handleGoogleSocialLogin(
+              context,
+              successMessage: 'Welcome back!',
+            ),
+            onFacebookTap: () => handleFacebookSocialLogin(
+              context,
+              successMessage: 'Welcome back!',
+            ),
           ),
 
           const SizedBox(height: 24),

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "448961187552",
+    "project_id": "belvix-app-development",
+    "storage_bucket": "belvix-app-development.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:448961187552:android:d9229e68d748ed487d0a85",
+        "android_client_info": {
+          "package_name": "com.belvix.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD-pGtiC1viMw5ouY3TD84lLo-PqhmFcfk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

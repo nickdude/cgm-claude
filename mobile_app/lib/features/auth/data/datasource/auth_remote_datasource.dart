@@ -16,6 +16,20 @@ class AuthRemoteDatasource {
     );
   }
 
+  Future<Response> loginWithGoogle({required String idToken}) async {
+    return await dio.post(
+      '/auth/google-login',
+      data: {'idToken': idToken},
+    );
+  }
+
+  Future<Response> loginWithFacebook({required String accessToken}) async {
+    return await dio.post(
+      '/auth/facebook-login',
+      data: {'accessToken': accessToken},
+    );
+  }
+
   Future<Response> register({
     required String fullName,
     required String phoneNumber,

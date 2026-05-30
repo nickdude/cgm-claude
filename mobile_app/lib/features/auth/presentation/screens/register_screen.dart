@@ -12,6 +12,10 @@ import '../widgets/auth_scaffold.dart';
 
 import '../widgets/auth_text_field.dart';
 
+import '../widgets/social_button.dart';
+
+import '../helpers/social_auth_actions.dart';
+
 import 'verify_email_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -121,6 +125,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 );
               }
             },
+          ),
+
+          const SizedBox(height: 24),
+
+          SocialAuthButtons(
+            isLoading: authProvider.isLoading,
+            onGoogleTap: () => handleGoogleSocialLogin(
+              context,
+              successMessage: 'Account ready!',
+            ),
+            onFacebookTap: () => handleFacebookSocialLogin(
+              context,
+              successMessage: 'Account ready!',
+            ),
           ),
 
           const SizedBox(height: 24),

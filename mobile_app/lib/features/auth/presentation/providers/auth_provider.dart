@@ -2,9 +2,15 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/storage/storage_service.dart';
 
+import '../../data/models/login_model.dart';
+
 import '../../data/models/user_model.dart';
 
 import '../../data/repository/auth_repository_impl.dart';
+
+import '../../domain/usecases/facebook_login_usecase.dart';
+
+import '../../domain/usecases/google_login_usecase.dart';
 
 import '../../domain/usecases/login_usecase.dart';
 
@@ -21,6 +27,14 @@ class AuthProvider extends ChangeNotifier {
 
   final LoginUsecase loginUsecase = LoginUsecase(AuthRepositoryImpl());
 
+  final GoogleLoginUsecase googleLoginUsecase = GoogleLoginUsecase(
+    AuthRepositoryImpl(),
+  );
+
+  final FacebookLoginUsecase facebookLoginUsecase = FacebookLoginUsecase(
+    AuthRepositoryImpl(),
+  );
+
   final RegisterUsecase registerUsecase = RegisterUsecase(AuthRepositoryImpl());
 
   final ForgotPasswordUsecase forgotPasswordUsecase = ForgotPasswordUsecase(
@@ -30,6 +44,14 @@ class AuthProvider extends ChangeNotifier {
   final ResetPasswordUsecase resetPasswordUsecase = ResetPasswordUsecase(
     AuthRepositoryImpl(),
   );
+
+  Future<void> _applyLoginResponse(LoginModel response) async {
+    await StorageService.setToken(response.token);
+
+    await _persistUser(response.user);
+
+    currentUser = response.user;
+  }
 
   Future<bool> login({required String email, required String password}) async {
     try {
@@ -42,11 +64,7 @@ class AuthProvider extends ChangeNotifier {
         password: password,
       );
 
-      await StorageService.setToken(response.token);
-
-      await _persistUser(response.user);
-
-      currentUser = response.user;
+      await _applyLoginResponse(response);
 
       isLoading = false;
 
@@ -59,6 +77,60 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
 
       debugPrint("Login failed: $e");
+
+      return false;
+    }
+  }
+
+  Future<bool> loginWithGoogle({required String idToken}) async {
+    try {
+      isLoading = true;
+
+      notifyListeners();
+
+      final response = await googleLoginUsecase.call(idToken: idToken);
+
+      await _applyLoginResponse(response);
+
+      isLoading = false;
+
+      notifyListeners();
+
+      return true;
+    } catch (e) {
+      isLoading = false;
+
+      notifyListeners();
+
+      debugPrint('Google login failed: $e');
+
+      return false;
+    }
+  }
+
+  Future<bool> loginWithFacebook({required String accessToken}) async {
+    try {
+      isLoading = true;
+
+      notifyListeners();
+
+      final response = await facebookLoginUsecase.call(
+        accessToken: accessToken,
+      );
+
+      await _applyLoginResponse(response);
+
+      isLoading = false;
+
+      notifyListeners();
+
+      return true;
+    } catch (e) {
+      isLoading = false;
+
+      notifyListeners();
+
+      debugPrint('Facebook login failed: $e');
 
       return false;
     }

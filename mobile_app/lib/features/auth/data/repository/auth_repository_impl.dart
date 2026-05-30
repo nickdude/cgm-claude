@@ -21,6 +21,22 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<LoginModel> loginWithGoogle({required String idToken}) async {
+    final response = await remoteDatasource.loginWithGoogle(idToken: idToken);
+
+    return LoginModel.fromJson(response.data["data"]);
+  }
+
+  @override
+  Future<LoginModel> loginWithFacebook({required String accessToken}) async {
+    final response = await remoteDatasource.loginWithFacebook(
+      accessToken: accessToken,
+    );
+
+    return LoginModel.fromJson(response.data["data"]);
+  }
+
+  @override
   Future<void> register({
     required String fullName,
     required String phoneNumber,

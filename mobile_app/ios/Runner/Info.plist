@@ -2,6 +2,29 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>fb1796614355081139</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.448961187552-vn4uporonioljbd3vahh7309u30ampl4</string>
+			</array>
+		</dict>
+	</array>
+	<key>FacebookAppID</key>
+	<string>1796614355081139</string>
+	<key>FacebookClientToken</key>
+	<string>be7b9d9c8822a8e2d2ac01d584d991b8</string>
+	<key>FacebookDisplayName</key>
+	<string>mobile_app</string>
+	<key>GIDClientID</key>
+	<string>448961187552-vn4uporonioljbd3vahh7309u30ampl4.apps.googleusercontent.com</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>App uses bluetooth to connect CGM devices.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
