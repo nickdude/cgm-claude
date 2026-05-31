@@ -38,20 +38,32 @@ export const addReadingService =
       await activeDevice.save();
     }
 
+    const readingAt =
+      payload.readingAt || now;
+
+    // Idempotent insert: keyed on (userId, deviceId, readingAt) so the same
+    // reading arriving twice (live stream + history backfill, or a retry)
+    // updates in place instead of creating a duplicate row.
     const reading =
-      await CGMReading.create({
-        userId,
-
-        deviceId: activeDevice._id,
-
-        glucoseValue:
-          payload.glucoseValue,
-
-        trend: payload.trend,
-
-        readingAt:
-          payload.readingAt || now,
-      });
+      await CGMReading.findOneAndUpdate(
+        {
+          userId,
+          deviceId: activeDevice._id,
+          readingAt,
+        },
+        {
+          $set: {
+            glucoseValue:
+              payload.glucoseValue,
+            trend: payload.trend,
+          },
+        },
+        {
+          upsert: true,
+          new: true,
+          setDefaultsOnInsert: true,
+        }
+      );
 
     return reading;
   };

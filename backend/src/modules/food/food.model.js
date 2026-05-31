@@ -18,6 +18,10 @@ const foodSchema = new mongoose.Schema(
 
     protein: Number,
 
+    fat: Number,
+
+    fiber: Number,
+
     calories: Number,
 
     loggedAt: {

@@ -2,37 +2,30 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-import '../../../../../app/theme/app_colors.dart';
+import '../../../../../core/storage/storage_service.dart';
+import '../../../../../core/widgets/app_surface.dart';
 import '../../../../exercise/presentation/providers/exercise_provider.dart';
 import '../../../../finger_blood/presentation/providers/finger_blood_provider.dart';
-import '../../../../finger_blood/presentation/screens/finger_blood_screen.dart';
 import '../../../../food/presentation/providers/food_provider.dart';
 import '../../../../insulin/presentation/providers/insulin_provider.dart';
-import '../../../../insulin/presentation/screens/insulin_screen.dart';
 import '../../../connect/presentation/providers/cgm_provider.dart';
 import '../../../connect/presentation/screens/device_management_screen.dart';
 import '../providers/cgm_dashboard_provider.dart';
 import '../widgets/dashboard_theme.dart';
 import '../widgets/day_snapshot.dart';
-import '../widgets/glucose_alert_card.dart';
-import '../widgets/glucose_chart.dart';
 import '../widgets/glucose_chart_card.dart';
+import '../widgets/glucose_trend_chart.dart';
 import '../widgets/glucose_gauge.dart';
 import '../widgets/metabolic_score_card.dart';
-import '../widgets/reveal.dart';
-import '../widgets/sensor_status_card.dart';
 import '../widgets/sync_progress_card.dart';
 import '../widgets/week_score_strip.dart';
+import 'gmi_screen.dart';
 
-/// Production CGM dashboard.
+/// Production CGM dashboard — the "Hub · Data" experience.
 ///
-/// The widget tree composes purpose-built dashboard sub-widgets in the
-/// order shown in `figma-screenshot/dashboard/`. All data routes through
-/// the existing providers — only UI/UX is touched here.
-///
-/// The top week strip drives a `_selectedDay` state. All visible
-/// metrics (gauge, score, chart, stats) recompute from a [DaySnapshot]
-/// of the readings for that day.
+/// All metrics recompute from a [DaySnapshot] of the readings for the
+/// selected day (driven by the week strip). Food / exercise / insulin /
+/// finger-blood providers feed the Timeline and Total Macros sections.
 class CGMDashboardScreen extends StatefulWidget {
   const CGMDashboardScreen({super.key});
 
@@ -43,8 +36,9 @@ class CGMDashboardScreen extends StatefulWidget {
 class _CGMDashboardScreenState extends State<CGMDashboardScreen> {
   CGMDashboardProvider? _dashboardProvider;
 
-  /// Midnight of the day the user is currently viewing. Defaults to today.
   late DateTime _selectedDay;
+
+  String _userName = '';
 
   @override
   void initState() {
@@ -53,9 +47,16 @@ class _CGMDashboardScreenState extends State<CGMDashboardScreen> {
     final now = DateTime.now();
     _selectedDay = DateTime(now.year, now.month, now.day);
 
+    StorageService.getUser().then((u) {
+      if (!mounted) return;
+      final name = (u?['fullName'] ?? '').toString().trim();
+      if (name.isNotEmpty) {
+        setState(() => _userName = name);
+      }
+    });
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-
       context.read<CGMDashboardProvider>().startRealtimeUpdates();
       context.read<CGMProvider>().fetchDevices();
       context.read<FoodProvider>().fetchFoods();
@@ -78,9 +79,7 @@ class _CGMDashboardScreenState extends State<CGMDashboardScreen> {
   }
 
   void _onDaySelected(DateTime day) {
-    setState(() {
-      _selectedDay = day;
-    });
+    setState(() => _selectedDay = day);
   }
 
   @override
@@ -91,10 +90,12 @@ class _CGMDashboardScreenState extends State<CGMDashboardScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         backgroundColor: DashboardTheme.screenBg,
-        title: const Text(
-          'CGM Dashboard',
-          style: TextStyle(
-            fontSize: 17,
+        centerTitle: false,
+        titleSpacing: 16,
+        title: Text(
+          _userName.isEmpty ? 'HI' : 'HI, ${_userName.toUpperCase()}',
+          style: const TextStyle(
+            fontSize: 18,
             fontWeight: FontWeight.w800,
             color: DashboardTheme.textPrimary,
           ),
@@ -103,26 +104,29 @@ class _CGMDashboardScreenState extends State<CGMDashboardScreen> {
           _AppBarIconButton(
             tooltip: 'Devices',
             icon: Icons.medical_services_outlined,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const DeviceManagementScreen(),
-                ),
-              );
-            },
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const DeviceManagementScreen()),
+            ),
           ),
-          _AppBarIconButton(
-            tooltip: 'Notifications',
-            icon: Icons.notifications_none_rounded,
-            onTap: () {
-              showModalBottomSheet<void>(
-                context: context,
-                backgroundColor: Colors.transparent,
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                ),
-                builder: (_) => const _NotificationsSheet(),
+          Consumer<CGMDashboardProvider>(
+            builder: (context, provider, _) {
+              final count = provider.glucoseEvents.length;
+              return _AppBarIconButton(
+                tooltip: 'Notifications',
+                icon: Icons.notifications_none_rounded,
+                badgeCount: count,
+                onTap: () {
+                  showModalBottomSheet<void>(
+                    context: context,
+                    backgroundColor: Colors.transparent,
+                    isScrollControlled: true,
+                    builder: (_) => ChangeNotifierProvider.value(
+                      value: provider,
+                      child: const _NotificationsSheet(),
+                    ),
+                  );
+                },
               );
             },
           ),
@@ -138,97 +142,29 @@ class _CGMDashboardScreenState extends State<CGMDashboardScreen> {
             context.read<CGMDashboardProvider>().refresh(),
           ]);
         },
-        child: SingleChildScrollView(
+        child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(
-            DashboardTheme.space20,
-            DashboardTheme.space8,
-            DashboardTheme.space20,
-            DashboardTheme.space24,
-          ),
-          child: Column(
-            children: [
-              Reveal(
-                delayMs: 0,
-                child: _WeekStripSection(
-                  selectedDay: _selectedDay,
-                  onDaySelected: _onDaySelected,
-                ),
-              ),
-              const SizedBox(height: DashboardTheme.space16),
-              Reveal(
-                delayMs: 60,
-                child: _GaugeSection(selectedDay: _selectedDay),
-              ),
-              const SizedBox(height: DashboardTheme.space16),
-              Reveal(
-                delayMs: 120,
-                child: _ScoreSection(selectedDay: _selectedDay),
-              ),
-              const SizedBox(height: DashboardTheme.space16),
-              Reveal(
-                delayMs: 160,
-                child: _AlertSection(selectedDay: _selectedDay),
-              ),
-              const Reveal(delayMs: 200, child: _SensorSection()),
-              const SizedBox(height: DashboardTheme.space16),
-              Reveal(
-                delayMs: 240,
-                child: _SyncOrChartSection(selectedDay: _selectedDay),
-              ),
-              const SizedBox(height: DashboardTheme.space16),
-              const Reveal(delayMs: 300, child: _QuickActionsCard()),
-              const SizedBox(height: DashboardTheme.space16),
-              Reveal(
-                delayMs: 340,
-                child: _DailyInsightsCard(selectedDay: _selectedDay),
-              ),
-              const SizedBox(height: DashboardTheme.space16),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// App bar
-// ---------------------------------------------------------------------------
-
-class _AppBarIconButton extends StatelessWidget {
-  const _AppBarIconButton({
-    required this.icon,
-    required this.onTap,
-    required this.tooltip,
-  });
-
-  final IconData icon;
-  final VoidCallback onTap;
-  final String tooltip;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 4),
-      child: Tooltip(
-        message: tooltip,
-        child: Material(
-          color: DashboardTheme.surface,
-          shape: const CircleBorder(),
-          elevation: 0,
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.all(10),
-              child: Icon(
-                icon,
-                size: 20,
-                color: DashboardTheme.textPrimary,
-              ),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+          children: [
+            _WeekStripSection(
+              selectedDay: _selectedDay,
+              onDaySelected: _onDaySelected,
             ),
-          ),
+            const SizedBox(height: 16),
+            _GaugeSection(selectedDay: _selectedDay),
+            const SizedBox(height: 16),
+            _ScoreSection(selectedDay: _selectedDay),
+            const SizedBox(height: 16),
+            _ChartSection(selectedDay: _selectedDay),
+            const SizedBox(height: 16),
+            _MetricsSection(selectedDay: _selectedDay),
+            const SizedBox(height: 24),
+            const _TimelineSection(),
+            const SizedBox(height: 20),
+            const _TotalMacrosSection(),
+            const SizedBox(height: 16),
+            _TrendsFooter(selectedDay: _selectedDay),
+          ],
         ),
       ),
     );
@@ -248,60 +184,122 @@ class _WeekStripSection extends StatelessWidget {
   final DateTime selectedDay;
   final ValueChanged<DateTime> onDaySelected;
 
+  static bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
   @override
   Widget build(BuildContext context) {
     return Consumer<CGMDashboardProvider>(
       builder: (context, provider, _) {
         final now = DateTime.now();
         final today = DateTime(now.year, now.month, now.day);
-        final weekDates = weekOf(today);
 
         const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
-        var selectedIndex = 0;
-        for (var i = 0; i < weekDates.length; i++) {
-          if (weekDates[i] == selectedDay) {
-            selectedIndex = i;
-            break;
-          }
-        }
+        // The last year, oldest -> newest (matches the data window).
+        final dates = List<DateTime>.generate(
+          365,
+          (i) => DateTime(today.year, today.month, today.day - (364 - i)),
+        );
 
-        final days = List<WeekDayScore>.generate(7, (i) {
-          final date = weekDates[i];
-          final isFuture = date.isAfter(today);
-
-          if (isFuture) {
-            return WeekDayScore(label: labels[i], enabled: false);
-          }
+        var selectedIndex = dates.length - 1;
+        final days = <WeekDayScore>[];
+        for (var i = 0; i < dates.length; i++) {
+          final date = dates[i];
+          if (_isSameDay(date, selectedDay)) selectedIndex = i;
 
           final snapshot = DaySnapshot.forDay(date, provider.readings);
-
           if (!snapshot.hasReadings) {
-            // Day in the past with no readings — still tappable so the
-            // user can see an empty state for that day.
-            return WeekDayScore(label: labels[i]);
+            days.add(
+              WeekDayScore(date: date, label: labels[date.weekday - 1]),
+            );
+            continue;
           }
 
-          final tir = snapshot.timeInRangePercent;
-
-          return WeekDayScore(
-            label: labels[i],
-            score: tir,
-            severity: tir >= 80
-                ? ScoreSeverity.good
-                : tir >= 60
-                    ? ScoreSeverity.warn
-                    : ScoreSeverity.bad,
+          // Show the day's average glucose with range-based severity.
+          final avg = snapshot.averageGlucose;
+          days.add(
+            WeekDayScore(
+              date: date,
+              label: labels[date.weekday - 1],
+              score: avg,
+              severity: avg >= 70 && avg <= 140
+                  ? ScoreSeverity.good
+                  : avg <= 180
+                  ? ScoreSeverity.warn
+                  : ScoreSeverity.bad,
+            ),
           );
-        });
+        }
 
         return WeekScoreStrip(
           days: days,
           selectedIndex: selectedIndex,
-          onDayTap: (index) {
-            final date = weekDates[index];
-            if (date.isAfter(today)) return;
-            onDaySelected(date);
+          onDayTap: (index) => onDaySelected(days[index].date),
+          onPickDate: () async {
+            final initial = selectedDay.isBefore(dates.first)
+                ? dates.first
+                : (selectedDay.isAfter(dates.last) ? dates.last : selectedDay);
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: initial,
+              firstDate: dates.first,
+              lastDate: dates.last,
+              builder: (context, child) {
+                final base = Theme.of(context);
+                return Theme(
+                  data: base.copyWith(
+                    colorScheme: base.colorScheme.copyWith(
+                      primary: DashboardTheme.textPrimary,
+                      onPrimary: Colors.white,
+                      onSurface: DashboardTheme.textPrimary,
+                    ),
+                    datePickerTheme: DatePickerThemeData(
+                      backgroundColor: Colors.white,
+                      headerBackgroundColor: DashboardTheme.textPrimary,
+                      headerForegroundColor: Colors.white,
+                      dayForegroundColor: WidgetStateProperty.resolveWith(
+                        (s) => s.contains(WidgetState.selected)
+                            ? Colors.white
+                            : DashboardTheme.textPrimary,
+                      ),
+                      dayBackgroundColor: WidgetStateProperty.resolveWith(
+                        (s) => s.contains(WidgetState.selected)
+                            ? DashboardTheme.textPrimary
+                            : null,
+                      ),
+                      todayForegroundColor: WidgetStateProperty.resolveWith(
+                        (s) => s.contains(WidgetState.selected)
+                            ? Colors.white
+                            : DashboardTheme.textPrimary,
+                      ),
+                      todayBackgroundColor: WidgetStateProperty.resolveWith(
+                        (s) => s.contains(WidgetState.selected)
+                            ? DashboardTheme.textPrimary
+                            : null,
+                      ),
+                      todayBorder: const BorderSide(
+                        color: DashboardTheme.textPrimary,
+                      ),
+                      yearForegroundColor: WidgetStateProperty.resolveWith(
+                        (s) => s.contains(WidgetState.selected)
+                            ? Colors.white
+                            : DashboardTheme.textPrimary,
+                      ),
+                      yearBackgroundColor: WidgetStateProperty.resolveWith(
+                        (s) => s.contains(WidgetState.selected)
+                            ? DashboardTheme.textPrimary
+                            : null,
+                      ),
+                    ),
+                  ),
+                  child: child!,
+                );
+              },
+            );
+            if (picked != null) {
+              onDaySelected(DateTime(picked.year, picked.month, picked.day));
+            }
           },
         );
       },
@@ -310,7 +308,7 @@ class _WeekStripSection extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Gauge
+// Gauge (or sync card while syncing today)
 // ---------------------------------------------------------------------------
 
 class _GaugeSection extends StatelessWidget {
@@ -320,12 +318,25 @@ class _GaugeSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<CGMDashboardProvider>(
-      builder: (context, provider, _) {
+    return Consumer2<CGMProvider, CGMDashboardProvider>(
+      builder: (context, cgm, provider, _) {
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        final isToday = selectedDay == today;
+
         final snapshot = DaySnapshot.forDay(selectedDay, provider.readings);
 
-        // Map glucose to 0..1 over a 50-180 mg/dL range so the dial
-        // visualisation stays meaningful for typical readings.
+        // Only show the sync card during the *initial* sync, before any
+        // reading exists. Once readings arrive, the gauge takes over and
+        // updates live with every new reading.
+        if (isToday && cgm.syncProgress < 1 && !snapshot.hasReadings) {
+          return SyncProgressCard(
+            progress: cgm.syncProgress,
+            status: cgm.connectionText,
+            color: cgm.statusColor,
+          );
+        }
+
         final value = snapshot.glucose ?? 0;
         final fill = ((value - 50) / 130).clamp(0.0, 1.0);
 
@@ -333,8 +344,8 @@ class _GaugeSection extends StatelessWidget {
         final trend = t.contains('fall')
             ? GaugeTrend.down
             : t.contains('ris')
-                ? GaugeTrend.up
-                : GaugeTrend.stable;
+            ? GaugeTrend.up
+            : GaugeTrend.stable;
 
         return Center(
           child: GlucoseGauge(
@@ -349,7 +360,7 @@ class _GaugeSection extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Metabolic score card
+// Metabolic score
 // ---------------------------------------------------------------------------
 
 class _ScoreSection extends StatelessWidget {
@@ -362,11 +373,9 @@ class _ScoreSection extends StatelessWidget {
     return Consumer<CGMDashboardProvider>(
       builder: (context, provider, _) {
         final snapshot = DaySnapshot.forDay(selectedDay, provider.readings);
-
         final tir = snapshot.timeInRangePercent;
         final ts = snapshot.lastReadingAt;
         final tsLabel = ts == null ? '--' : DateFormat('h:mm a').format(ts);
-
         final value = (snapshot.glucose ?? 100).clamp(40, 240);
         final position = ((value - 40) / 200).clamp(0.0, 1.0);
 
@@ -383,75 +392,21 @@ class _ScoreSection extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Alert
+// Chart
 // ---------------------------------------------------------------------------
 
-class _AlertSection extends StatelessWidget {
-  const _AlertSection({required this.selectedDay});
+class _ChartSection extends StatelessWidget {
+  const _ChartSection({required this.selectedDay});
 
   final DateTime selectedDay;
 
   @override
   Widget build(BuildContext context) {
     return Consumer<CGMDashboardProvider>(
-      builder: (context, provider, _) {
-        // Only show the live alert banner when looking at today.
-        final now = DateTime.now();
-        final today = DateTime(now.year, now.month, now.day);
-        if (selectedDay != today) return const SizedBox.shrink();
-
-        if (!provider.showAlert) return const SizedBox.shrink();
-
-        return Padding(
-          padding: const EdgeInsets.only(bottom: DashboardTheme.space16),
-          child: GlucoseAlertCard(
-            message: provider.alertMessage,
-            color: provider.alertColor,
-          ),
-        );
-      },
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Sensor status (kept — preserves existing UX)
-// ---------------------------------------------------------------------------
-
-class _SensorSection extends StatelessWidget {
-  const _SensorSection();
-
-  @override
-  Widget build(BuildContext context) {
-    return const SensorStatusCard();
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Sync progress or chart card
-// ---------------------------------------------------------------------------
-
-class _SyncOrChartSection extends StatelessWidget {
-  const _SyncOrChartSection({required this.selectedDay});
-
-  final DateTime selectedDay;
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer2<CGMProvider, CGMDashboardProvider>(
-      builder: (context, cgm, dashboard, _) {
-        // Sync progress UI only makes sense while viewing today.
+      builder: (context, dashboard, _) {
         final now = DateTime.now();
         final today = DateTime(now.year, now.month, now.day);
         final isToday = selectedDay == today;
-
-        if (isToday && cgm.syncProgress < 1) {
-          return SyncProgressCard(
-            progress: cgm.syncProgress,
-            status: cgm.connectionText,
-            color: cgm.statusColor,
-          );
-        }
 
         final snapshot = DaySnapshot.forDay(selectedDay, dashboard.readings);
 
@@ -468,13 +423,11 @@ class _SyncOrChartSection extends StatelessWidget {
         final lastValue = '${last.glucoseValue.round()} mg/dL';
 
         return GlucoseChartCard(
-          chart: GlucoseChart(
-            key: ValueKey(
-              '${selectedDay.toIso8601String()}-${snapshot.readings.length}',
-            ),
-            spots: snapshot.glucoseSpots,
-            timestamps:
-                snapshot.readings.map((r) => r.readingAt).toList(growable: false),
+          chart: GlucoseTrendChart(
+            // Stable per-day key: a new reading updates the existing chart
+            // in place (preserving zoom/scroll/tooltip) instead of rebuilding.
+            key: ValueKey(selectedDay),
+            readings: snapshot.readings,
           ),
           showSpikeTag: snapshot.spikeCount > 0,
           lastReadingLabel: lastTime,
@@ -506,30 +459,20 @@ class _ChartEmptyCard extends StatelessWidget {
         ? 'Waiting for first reading'
         : 'No readings for ${DateFormat('MMM d').format(day)}';
 
-    final subtitle = isToday
-        ? 'Your live glucose chart will appear here.'
-        : 'Try a different day from the strip above.';
-
-    return Container(
+    return AppSurface(
       padding: const EdgeInsets.all(DashboardTheme.space24),
-      decoration: BoxDecoration(
-        color: DashboardTheme.surface,
-        borderRadius: BorderRadius.circular(DashboardTheme.radiusLg),
-        boxShadow: DashboardTheme.cardShadow,
-      ),
+      radius: DashboardTheme.radiusLg,
       child: SizedBox(
-        height: 220,
+        height: 200,
         child: Center(
           child: isLoading
-              ? const CircularProgressIndicator(
-                  color: DashboardTheme.accent,
-                )
+              ? const CircularProgressIndicator(color: DashboardTheme.accent)
               : Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.show_chart_rounded,
-                      size: 56,
+                      size: 48,
                       color: DashboardTheme.track,
                     ),
                     const SizedBox(height: 12),
@@ -538,14 +481,6 @@ class _ChartEmptyCard extends StatelessWidget {
                       style: const TextStyle(
                         color: DashboardTheme.textSecondary,
                         fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        color: DashboardTheme.textMuted,
-                        fontSize: 12,
                       ),
                     ),
                   ],
@@ -557,115 +492,231 @@ class _ChartEmptyCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Quick actions
+// Metric cards (Time above range / Time in range / Excursion / GMI / Osc.)
 // ---------------------------------------------------------------------------
 
-class _QuickActionsCard extends StatelessWidget {
-  const _QuickActionsCard();
+class _MetricsSection extends StatelessWidget {
+  const _MetricsSection({required this.selectedDay});
+
+  final DateTime selectedDay;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(DashboardTheme.space20),
-      decoration: BoxDecoration(
-        color: DashboardTheme.surface,
-        borderRadius: BorderRadius.circular(DashboardTheme.radiusLg),
-        boxShadow: DashboardTheme.cardShadow,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Quick Actions', style: DashboardTheme.heading),
-          const SizedBox(height: 4),
-          const Text(
-            'Log anything with one tap.',
-            style: DashboardTheme.body,
-          ),
-          const SizedBox(height: DashboardTheme.space16),
-          Row(
-            children: [
-              Expanded(
-                child: _ActionTile(
-                  icon: Icons.water_drop_rounded,
-                  label: 'Insulin',
-                  color: const Color(0xFF7C3AED),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const InsulinScreen(),
-                      ),
-                    );
-                  },
-                ),
+    return Consumer<CGMDashboardProvider>(
+      builder: (context, provider, _) {
+        final s = DaySnapshot.forDay(selectedDay, provider.readings);
+
+        if (!s.hasReadings) return const SizedBox.shrink();
+
+        final total = s.readings.length;
+        final aboveMin =
+            s.readings.where((r) => r.glucoseValue > 180).length * 5;
+        final inRangeMin =
+            s.readings
+                .where((r) => r.glucoseValue >= 70 && r.glucoseValue <= 180)
+                .length *
+            5;
+
+        final values = s.readings.map((r) => r.glucoseValue).toList();
+        final excursion = values.isEmpty
+            ? 0
+            : (values.reduce((a, b) => a > b ? a : b) -
+                      values.reduce((a, b) => a < b ? a : b))
+                  .round();
+
+        final gmi = 3.31 + 0.02392 * s.averageGlucose;
+
+        return Column(
+          children: [
+            _MetricCard(
+              title: 'Time above range',
+              value: '$aboveMin',
+              unit: 'min',
+              badness: (aboveMin / 180).clamp(0.0, 1.0),
+            ),
+            const SizedBox(height: 14),
+            _MetricCard(
+              title: 'Time in range',
+              value: '$inRangeMin',
+              unit: 'min',
+              badness: (1 - (total == 0 ? 0.0 : inRangeMin / (total * 5)))
+                  .clamp(0.0, 1.0),
+            ),
+            const SizedBox(height: 14),
+            _MetricCard(
+              title: 'Time out of range',
+              value: '${s.timeOutOfRangePercent}',
+              unit: '%',
+              badness: (s.timeOutOfRangePercent / 50).clamp(0.0, 1.0),
+            ),
+            const SizedBox(height: 14),
+            _MetricCard(
+              title: 'Hyperglycemic events',
+              value: '${s.hyperEvents}',
+              unit: 'events',
+              badness: (s.hyperEvents / 5).clamp(0.0, 1.0),
+            ),
+            const SizedBox(height: 14),
+            _MetricCard(
+              title: 'Hypoglycemic events',
+              value: '${s.hypoEvents}',
+              unit: 'events',
+              badness: (s.hypoEvents / 3).clamp(0.0, 1.0),
+            ),
+            const SizedBox(height: 14),
+            _MetricCard(
+              title: 'Glucose Excursion',
+              value: '$excursion',
+              unit: 'mg/dL',
+              badness: ((excursion - 40) / 120).clamp(0.0, 1.0),
+            ),
+            const SizedBox(height: 14),
+            _MetricCard(
+              title: 'GMI',
+              value: gmi.toStringAsFixed(1),
+              unit: '%',
+              badness: ((gmi - 5.0) / 2.0).clamp(0.0, 1.0),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const GmiScreen()),
               ),
-              const SizedBox(width: DashboardTheme.space12),
-              Expanded(
-                child: _ActionTile(
-                  icon: Icons.bloodtype_rounded,
-                  label: 'Finger Stick',
-                  color: DashboardTheme.danger,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const FingerBloodScreen(),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+            ),
+            const SizedBox(height: 14),
+            _MetricCard(
+              title: 'Glucose Oscillation',
+              value: '${s.stdDev}',
+              unit: 'mg/dL',
+              badness: ((s.stdDev - 10) / 40).clamp(0.0, 1.0),
+            ),
+          ],
+        );
+      },
     );
   }
 }
 
-class _ActionTile extends StatelessWidget {
-  const _ActionTile({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
+class _MetricCard extends StatelessWidget {
+  const _MetricCard({
+    required this.title,
+    required this.value,
+    required this.unit,
+    required this.badness,
+    this.onTap,
   });
 
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
+  final String title;
+  final String value;
+  final String unit;
+  final double badness; // 0 = optimal, 1 = elevated
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    final status = badness < 0.34
+        ? 'OPTIMAL'
+        : badness < 0.67
+        ? 'MODERATE'
+        : 'ELEVATED';
+    final statusColor = badness < 0.34
+        ? DashboardTheme.accent
+        : badness < 0.67
+        ? DashboardTheme.warn
+        : DashboardTheme.danger;
+
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(DashboardTheme.radiusMd),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 18,
-        ),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(DashboardTheme.radiusMd),
-        ),
+      child: AppSurface(
+        padding: const EdgeInsets.all(18),
+        radius: DashboardTheme.radiusLg,
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.14),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 24),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: DashboardTheme.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        status,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: statusColor,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(
+                      value,
+                      style: const TextStyle(
+                        fontSize: 34,
+                        fontWeight: FontWeight.w800,
+                        color: DashboardTheme.textPrimary,
+                        height: 1,
+                        letterSpacing: -1,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      unit,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: DashboardTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(height: 10),
-            Text(
-              label,
-              style: const TextStyle(
-                color: DashboardTheme.textPrimary,
-                fontWeight: FontWeight.w700,
+            const SizedBox(height: 14),
+            _SegmentedMeter(position: badness, dotColor: statusColor),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: const [
+                Text(
+                  'Optimal',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: DashboardTheme.textMuted,
+                  ),
+                ),
+                Text(
+                  'Elevated',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: DashboardTheme.textMuted,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Your glucose levels have been stable today. Focus on balanced '
+              'meals and activity to help your body to balance glucose.',
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.4,
+                color: DashboardTheme.textSecondary,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],
@@ -675,80 +726,55 @@ class _ActionTile extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Daily insights
-// ---------------------------------------------------------------------------
+class _SegmentedMeter extends StatelessWidget {
+  const _SegmentedMeter({required this.position, required this.dotColor});
 
-class _DailyInsightsCard extends StatelessWidget {
-  const _DailyInsightsCard({required this.selectedDay});
-
-  final DateTime selectedDay;
+  final double position; // 0..1
+  final Color dotColor;
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<CGMDashboardProvider>(
-      builder: (context, provider, _) {
-        final snapshot = DaySnapshot.forDay(selectedDay, provider.readings);
-
-        final tir = snapshot.timeInRangePercent;
-        final hasData = snapshot.hasReadings;
-
-        final now = DateTime.now();
-        final today = DateTime(now.year, now.month, now.day);
-        final isToday = selectedDay == today;
-
-        final headline = isToday
-            ? 'Daily Insights'
-            : 'Insights for ${DateFormat('MMM d').format(selectedDay)}';
-
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(DashboardTheme.space20),
-          decoration: BoxDecoration(
-            color: DashboardTheme.surface,
-            borderRadius: BorderRadius.circular(DashboardTheme.radiusLg),
-            boxShadow: DashboardTheme.cardShadow,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return LayoutBuilder(
+      builder: (context, c) {
+        final w = c.maxWidth;
+        return SizedBox(
+          height: 14,
+          child: Stack(
+            alignment: Alignment.centerLeft,
             children: [
-              Text(headline, style: DashboardTheme.heading),
-              const SizedBox(height: 4),
-              const Text(
-                'Signals and suggestions based on the day\'s readings.',
-                style: DashboardTheme.body,
+              Row(
+                children: List.generate(4, (i) {
+                  final segCenter = (i + 0.5) / 4;
+                  final filled = segCenter <= position + 0.02;
+                  return Expanded(
+                    child: Container(
+                      margin: EdgeInsets.only(right: i == 3 ? 0 : 4),
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: filled
+                            ? DashboardTheme.textPrimary
+                            : DashboardTheme.track,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                  );
+                }),
               ),
-              const SizedBox(height: DashboardTheme.space16),
-              if (!hasData)
-                const _InsightTile(
-                  icon: Icons.info_outline_rounded,
-                  title: 'No readings',
-                  subtitle: 'There were no sensor readings on this day.',
-                )
-              else ...[
-                _InsightTile(
-                  icon: tir >= 70
-                      ? Icons.check_circle_outline_rounded
-                      : Icons.insights_rounded,
-                  title:
-                      tir >= 70 ? 'Great control' : 'Time in range: $tir%',
-                  subtitle: tir >= 70
-                      ? '$tir% of readings were in range.'
-                      : 'Aim for 70%+ of readings between 70 and 180 mg/dL.',
+              Positioned(
+                left: (position.clamp(0.0, 1.0) * w) - 7,
+                child: Container(
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: dotColor,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2.5),
+                    boxShadow: const [
+                      BoxShadow(color: Color(0x22000000), blurRadius: 4),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 12),
-                _InsightTile(
-                  icon: snapshot.spikeCount > 0
-                      ? Icons.warning_amber_rounded
-                      : Icons.timeline_rounded,
-                  title: snapshot.spikeCount > 0
-                      ? '${snapshot.spikeCount} spike${snapshot.spikeCount == 1 ? '' : 's'} detected'
-                      : 'Stable trend',
-                  subtitle: snapshot.spikeCount > 0
-                      ? 'Spent ${snapshot.spikeTime} above 180 mg/dL.'
-                      : 'Readings stayed within the target range.',
-                ),
-              ],
+              ),
             ],
           ),
         );
@@ -757,56 +783,618 @@ class _DailyInsightsCard extends StatelessWidget {
   }
 }
 
-class _InsightTile extends StatelessWidget {
-  const _InsightTile({
+// ---------------------------------------------------------------------------
+// Timeline
+// ---------------------------------------------------------------------------
+
+class _TimelineEntry {
+  const _TimelineEntry({
     required this.icon,
+    required this.iconColor,
+    required this.time,
     required this.title,
-    required this.subtitle,
+    this.subtitle,
   });
 
   final IconData icon;
+  final Color iconColor;
+  final String time;
   final String title;
-  final String subtitle;
+  final String? subtitle;
+}
+
+class _TimelineSection extends StatelessWidget {
+  const _TimelineSection();
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(11),
-          decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(DashboardTheme.radiusSm),
+    return Consumer4<
+      FoodProvider,
+      ExerciseProvider,
+      InsulinProvider,
+      FingerBloodProvider
+    >(
+      builder: (context, food, exercise, insulin, finger, _) {
+        final dash = context.watch<CGMDashboardProvider>();
+        final entries = <_TimelineEntry>[];
+
+        // Glucose events derived from today's readings crossing 110 mg/dL.
+        final today = DateTime.now();
+        final snap = DaySnapshot.forDay(
+          DateTime(today.year, today.month, today.day),
+          dash.readings,
+        );
+        for (final r in snap.readings.reversed) {
+          if (entries.length >= 3) break;
+          if (r.glucoseValue > 110) {
+            entries.add(
+              _TimelineEntry(
+                icon: Icons.error_outline,
+                iconColor: DashboardTheme.danger,
+                time: DateFormat('h:mm a').format(r.readingAt),
+                title: 'Hyperglycemic event detected',
+                subtitle:
+                    'Your glucose (${r.glucoseValue.round()}) rose above the '
+                    'max target of (110 mg/dL).',
+              ),
+            );
+          }
+        }
+
+        // Meals.
+        if (food.foods.isNotEmpty) {
+          entries.add(
+            _TimelineEntry(
+              icon: Icons.restaurant,
+              iconColor: DashboardTheme.textPrimary,
+              time: food.foods.first.time,
+              title: 'Meal logged',
+              subtitle: food.foods.map((f) => f.title).join(', '),
+            ),
+          );
+        }
+
+        // Exercise / activity.
+        for (final e in exercise.exercises) {
+          entries.add(
+            _TimelineEntry(
+              icon: Icons.monitor_heart_outlined,
+              iconColor: DashboardTheme.textPrimary,
+              time: e.time,
+              title: e.title,
+              subtitle: '${e.duration} min · ${e.caloriesBurned} kcal',
+            ),
+          );
+        }
+
+        // Insulin doses.
+        for (final i in insulin.insulins) {
+          entries.add(
+            _TimelineEntry(
+              icon: Icons.water_drop_outlined,
+              iconColor: const Color(0xFF7C3AED),
+              time: i.time,
+              title: i.insulinType,
+              subtitle: '${i.dosage} units',
+            ),
+          );
+        }
+
+        // Finger-stick readings.
+        for (final f in finger.fingerBloods) {
+          entries.add(
+            _TimelineEntry(
+              icon: Icons.bloodtype_outlined,
+              iconColor: DashboardTheme.danger,
+              time: f.time,
+              title: 'Finger stick · ${f.glucoseValue} mg/dL',
+              subtitle: f.notes.isEmpty ? null : f.notes,
+            ),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Timeline', style: _h2),
+            const SizedBox(height: 14),
+            if (entries.isEmpty)
+              const _EmptyHint('No events logged for today yet.')
+            else
+              for (final e in entries)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _TimelineCard(entry: e),
+                ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _TimelineCard extends StatelessWidget {
+  const _TimelineCard({required this.entry});
+
+  final _TimelineEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurface(
+      radius: DashboardTheme.radiusMd,
+      clip: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 14, 10),
+            child: Row(
+              children: [
+                Icon(entry.icon, size: 18, color: entry.iconColor),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Row(
+                    children: [
+                      Text(
+                        entry.time,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: DashboardTheme.textPrimary,
+                        ),
+                      ),
+                      if (entry.title.isNotEmpty) ...[
+                        const Text(
+                          '  ·  ',
+                          style: TextStyle(color: DashboardTheme.textMuted),
+                        ),
+                        Expanded(
+                          child: Text(
+                            entry.title,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: DashboardTheme.textPrimary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.info_outline,
+                  size: 18,
+                  color: DashboardTheme.textMuted,
+                ),
+              ],
+            ),
           ),
-          child: Icon(icon, color: AppColors.primary),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
+          if (entry.subtitle != null) ...[
+            const Divider(height: 1, color: Color(0xFFF0F2F5)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+              child: Text(
+                entry.subtitle!,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: DashboardTheme.textSecondary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Total Macros
+// ---------------------------------------------------------------------------
+
+class _TotalMacrosSection extends StatelessWidget {
+  const _TotalMacrosSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<FoodProvider>(
+      builder: (context, food, _) {
+        final calories = food.foods.fold<int>(0, (sum, f) => sum + f.calories);
+        final carbs = food.foods.fold<int>(0, (sum, f) => sum + f.carbs);
+        final protein = food.foods.fold<int>(0, (sum, f) => sum + f.protein);
+        final fat = food.foods.fold<int>(0, (sum, f) => sum + f.fat);
+        final fiber = food.foods.fold<int>(0, (sum, f) => sum + f.fiber);
+        final meals = food.foods.length;
+
+        return AppSurface(
+          padding: const EdgeInsets.all(18),
+          radius: DashboardTheme.radiusLg,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  color: DashboardTheme.textPrimary,
-                  fontSize: 14,
+              Row(
+                children: [
+                  Container(
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: const Color(0xFFE5484D),
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Text('Total Macros', style: _h2),
+                  const Text(
+                    '  ·  ',
+                    style: TextStyle(color: DashboardTheme.textMuted),
+                  ),
+                  Text(
+                    '$meals meals',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      color: DashboardTheme.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Divider(height: 1, color: Color(0xFFF0F2F5)),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _MacroRing(
+                    value: '$calories',
+                    label: 'Calories',
+                    color: DashboardTheme.textPrimary,
+                    fraction: 1,
+                  ),
+                  _MacroRing(
+                    value: '${protein}g',
+                    label: 'Protein',
+                    color: const Color(0xFFE5484D),
+                    fraction: (protein / 200).clamp(0.0, 1.0),
+                  ),
+                  _MacroRing(
+                    value: '${fat}g',
+                    label: 'Fat',
+                    color: const Color(0xFF3B82F6),
+                    fraction: (fat / 200).clamp(0.0, 1.0),
+                  ),
+                  _MacroRing(
+                    value: '${carbs}g',
+                    label: 'Carbs',
+                    color: const Color(0xFFE89240),
+                    fraction: (carbs / 300).clamp(0.0, 1.0),
+                  ),
+                  _MacroRing(
+                    value: '${fiber}g',
+                    label: 'Fiber',
+                    color: const Color(0xFF16A34A),
+                    fraction: (fiber / 60).clamp(0.0, 1.0),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MacroRing extends StatelessWidget {
+  const _MacroRing({
+    required this.value,
+    required this.label,
+    required this.color,
+    required this.fraction,
+  });
+
+  final String value;
+  final String label;
+  final Color color;
+  final double fraction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        SizedBox(
+          width: 54,
+          height: 54,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              SizedBox(
+                width: 54,
+                height: 54,
+                child: CircularProgressIndicator(
+                  value: fraction <= 0 ? 0 : fraction,
+                  strokeWidth: 4,
+                  backgroundColor: DashboardTheme.track,
+                  valueColor: AlwaysStoppedAnimation(color),
                 ),
               ),
-              const SizedBox(height: 4),
               Text(
-                subtitle,
-                style: const TextStyle(
-                  color: DashboardTheme.textSecondary,
-                  fontSize: 12.5,
-                  height: 1.4,
+                value,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: color,
                 ),
               ),
             ],
           ),
         ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            color: DashboardTheme.textSecondary,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Trends footer
+// ---------------------------------------------------------------------------
+
+class _TrendsFooter extends StatelessWidget {
+  const _TrendsFooter({required this.selectedDay});
+
+  final DateTime selectedDay;
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<CGMDashboardProvider>(
+      builder: (context, provider, _) {
+        final s = DaySnapshot.forDay(selectedDay, provider.readings);
+        final values = s.readings
+            .map((r) => r.glucoseValue)
+            .toList(growable: false);
+
+        return AppSurface(
+          padding: const EdgeInsets.all(18),
+          radius: DashboardTheme.radiusLg,
+          child: Column(
+            children: [
+              Row(
+                children: const [
+                  Expanded(
+                    child: Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: 'Glu. Variability  ',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: DashboardTheme.textPrimary,
+                            ),
+                          ),
+                          TextSpan(
+                            text: 'Avg. Glucose  ·  Trends',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: DashboardTheme.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, color: DashboardTheme.textMuted),
+                ],
+              ),
+              const SizedBox(height: 14),
+              const Divider(height: 1, color: Color(0xFFF0F2F5)),
+              const SizedBox(height: 14),
+              SizedBox(
+                height: 36,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: CustomPaint(
+                        painter: _SparklinePainter(
+                          values,
+                          DashboardTheme.accent,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: CustomPaint(
+                        painter: _SparklinePainter(
+                          values,
+                          DashboardTheme.textMuted,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _SparklinePainter extends CustomPainter {
+  _SparklinePainter(this.values, this.color);
+
+  final List<double> values;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.length < 2) {
+      // Flat line fallback so the card never looks broken.
+      final p = Paint()
+        ..color = color
+        ..strokeWidth = 2
+        ..strokeCap = StrokeCap.round;
+      canvas.drawLine(
+        Offset(0, size.height / 2),
+        Offset(size.width, size.height / 2),
+        p,
+      );
+      return;
+    }
+
+    final minV = values.reduce((a, b) => a < b ? a : b);
+    final maxV = values.reduce((a, b) => a > b ? a : b);
+    final span = (maxV - minV).abs() < 1 ? 1 : (maxV - minV);
+
+    final path = Path();
+    for (var i = 0; i < values.length; i++) {
+      final x = size.width * i / (values.length - 1);
+      final y = size.height - ((values[i] - minV) / span) * size.height;
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _SparklinePainter old) =>
+      old.values != values || old.color != color;
+}
+
+// ---------------------------------------------------------------------------
+// Shared
+// ---------------------------------------------------------------------------
+
+const _h2 = TextStyle(
+  fontSize: 20,
+  fontWeight: FontWeight.w800,
+  color: DashboardTheme.textPrimary,
+);
+
+class _EmptyHint extends StatelessWidget {
+  const _EmptyHint(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurface(
+      padding: const EdgeInsets.all(20),
+      radius: DashboardTheme.radiusMd,
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: DashboardTheme.textSecondary,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// App bar
+// ---------------------------------------------------------------------------
+
+class _AppBarIconButton extends StatelessWidget {
+  const _AppBarIconButton({
+    required this.icon,
+    required this.onTap,
+    required this.tooltip,
+    this.badgeCount = 0,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final String tooltip;
+  final int badgeCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 4),
+      child: Tooltip(
+        message: tooltip,
+        child: Material(
+          color: DashboardTheme.surface,
+          shape: const CircleBorder(),
+          elevation: 0,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Icon(
+                    icon,
+                    size: 20,
+                    color: DashboardTheme.textPrimary,
+                  ),
+                ),
+                if (badgeCount > 0)
+                  Positioned(
+                    right: 4,
+                    top: 4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 1,
+                      ),
+                      constraints: const BoxConstraints(minWidth: 16),
+                      decoration: BoxDecoration(
+                        color: DashboardTheme.danger,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: DashboardTheme.screenBg,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Text(
+                        badgeCount > 9 ? '9+' : '$badgeCount',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          height: 1.2,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -818,40 +1406,186 @@ class _InsightTile extends StatelessWidget {
 class _NotificationsSheet extends StatelessWidget {
   const _NotificationsSheet();
 
+  String _formatTime(DateTime at) {
+    final local = at.toLocal();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final isToday =
+        !local.isBefore(today) &&
+        local.isBefore(today.add(const Duration(days: 1)));
+    return isToday
+        ? DateFormat('h:mm a').format(local)
+        : DateFormat('MMM d, h:mm a').format(local);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: DashboardTheme.surface,
-            borderRadius: BorderRadius.circular(DashboardTheme.radiusLg),
-            boxShadow: DashboardTheme.cardShadow,
-          ),
-          child: const Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Notifications',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: DashboardTheme.textPrimary,
-                ),
+    return Consumer<CGMDashboardProvider>(
+      builder: (context, provider, _) {
+        final events = provider.glucoseEvents;
+
+        return SafeArea(
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.6,
+            ),
+            child: AppSurface(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              radius: DashboardTheme.radiusLg,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Text('Notifications', style: _h2),
+                      const SizedBox(width: 8),
+                      if (events.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: DashboardTheme.danger.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '${events.length}',
+                            style: const TextStyle(
+                              color: DashboardTheme.danger,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Glucose alerts and sensor events.',
+                    style: TextStyle(color: DashboardTheme.textSecondary),
+                  ),
+                  const SizedBox(height: 12),
+                  if (events.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 28),
+                      child: Center(
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.notifications_off_outlined,
+                              size: 40,
+                              color: DashboardTheme.track,
+                            ),
+                            SizedBox(height: 10),
+                            Text(
+                              'No glucose alerts',
+                              style: TextStyle(
+                                color: DashboardTheme.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              "You're in range — nothing to report.",
+                              style: TextStyle(
+                                color: DashboardTheme.textMuted,
+                                fontSize: 12.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.only(bottom: 8),
+                        itemCount: events.length,
+                        separatorBuilder: (_, __) =>
+                            const Divider(height: 1, color: Color(0xFFF0F2F5)),
+                        itemBuilder: (context, i) {
+                          final e = events[i];
+                          return _NotificationRow(
+                            event: e,
+                            time: _formatTime(e.at),
+                          );
+                        },
+                      ),
+                    ),
+                ],
               ),
-              SizedBox(height: 8),
-              Text(
-                'Alerts and sensor events will appear here.',
-                style: TextStyle(
-                  color: DashboardTheme.textSecondary,
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
+        );
+      },
+    );
+  }
+}
+
+class _NotificationRow extends StatelessWidget {
+  const _NotificationRow({required this.event, required this.time});
+
+  final GlucoseEvent event;
+  final String time;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = event.isLow ? DashboardTheme.danger : DashboardTheme.warn;
+    final title = event.isLow ? 'Low glucose' : 'High glucose';
+    final icon = event.isLow
+        ? Icons.south_east_rounded
+        : Icons.north_east_rounded;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 18, color: color),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                    color: DashboardTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${event.value} mg/dL',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: DashboardTheme.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            time,
+            style: const TextStyle(
+              fontSize: 12,
+              color: DashboardTheme.textMuted,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }

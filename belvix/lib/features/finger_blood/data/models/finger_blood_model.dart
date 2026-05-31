@@ -1,3 +1,5 @@
+import 'package:intl/intl.dart';
+
 class FingerBloodModel {
   final String id;
 
@@ -5,27 +7,34 @@ class FingerBloodModel {
 
   final String notes;
 
-  final String time;
+  final DateTime loggedAt;
 
   FingerBloodModel({
     required this.id,
     required this.glucoseValue,
     required this.notes,
-    required this.time,
+    required this.loggedAt,
   });
 
-  factory FingerBloodModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
+  String get time =>
+      DateFormat('h:mm a').format(loggedAt.toLocal());
+
+  factory FingerBloodModel.fromJson(Map<String, dynamic> json) {
+    final raw = json["loggedAt"] ?? json["createdAt"];
+    final parsed = raw is String
+        ? (DateTime.tryParse(raw) ?? DateTime.now())
+        : DateTime.now();
+
     return FingerBloodModel(
-      id: json["_id"],
-
-      glucoseValue:
-          json["glucoseValue"],
-
+      id: (json["_id"] ?? json["id"] ?? "").toString(),
+      glucoseValue: (json["glucoseValue"] as num? ?? 0).round(),
       notes: json["notes"] ?? "",
-
-      time: json["time"] ?? "",
+      loggedAt: parsed,
     );
   }
+
+  Map<String, dynamic> toCreateJson() => {
+        "glucoseValue": glucoseValue,
+        "notes": notes,
+      };
 }

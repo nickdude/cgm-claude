@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../core/network/dio_client.dart';
+import '../../../../core/widgets/app_surface.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
 import '../../../welcome/presentation/screens/welcome_screen.dart';
@@ -132,24 +133,12 @@ class ProfileScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: double.infinity,
+              AppSurface(
                 padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF0F172A), Color(0xFF1D4ED8)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(28),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x240F172A),
-                      blurRadius: 24,
-                      offset: Offset(0, 12),
-                    ),
-                  ],
-                ),
+                radius: 28,
+                color: const Color(0xFF1D4ED8),
+                shadowColor: const Color(0x240F172A),
+                elevation: 6,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -225,19 +214,9 @@ class ProfileScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 10),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: const Color(0xFFE8EDF4)),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x0B0F172A),
-                      blurRadius: 20,
-                      offset: Offset(0, 10),
-                    ),
-                  ],
-                ),
+              AppSurface(
+                radius: 24,
+                borderColor: const Color(0xFFE8EDF4),
                 child: Column(
                   children: [
                     buildTile(

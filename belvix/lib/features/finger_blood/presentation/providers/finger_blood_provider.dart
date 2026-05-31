@@ -1,65 +1,50 @@
 import 'package:flutter/material.dart';
 
 import '../../data/models/finger_blood_model.dart';
+import '../../data/repository/finger_blood_repository_impl.dart';
 
-import '../../../../core/constants/app_globals.dart';
+class FingerBloodProvider extends ChangeNotifier {
+  final FingerBloodRepository _repository = FingerBloodRepository();
 
-class FingerBloodProvider
-    extends ChangeNotifier {
-  List<FingerBloodModel>
-      fingerBloods = [];
+  bool isLoading = false;
+
+  List<FingerBloodModel> fingerBloods = [];
 
   Future<void> fetchFingerBloods() async {
-    fingerBloods = [
-      FingerBloodModel(
-        id: "1",
+    isLoading = true;
+    notifyListeners();
 
-        glucoseValue: 118,
+    fingerBloods = await _repository.list();
 
-        notes:
-            "Before Breakfast",
-
-        time: "08:10 AM",
-      ),
-
-      FingerBloodModel(
-        id: "2",
-
-        glucoseValue: 145,
-
-        notes:
-            "After Lunch",
-
-        time: "02:00 PM",
-      ),
-    ];
-
+    isLoading = false;
     notifyListeners();
   }
 
-  Future<void> addFingerBlood({
+  Future<bool> addFingerBlood({
     required int glucoseValue,
     required String notes,
   }) async {
-    fingerBloods.insert(
-      0,
+    final created = await _repository.create(
       FingerBloodModel(
-        id: DateTime.now()
-            .toString(),
-
-        glucoseValue:
-            glucoseValue,
-
+        id: "",
+        glucoseValue: glucoseValue,
         notes: notes,
-
-        time: TimeOfDay.now()
-            .format(
-          navigatorKey
-              .currentContext!,
-        ),
+        loggedAt: DateTime.now(),
       ),
     );
 
+    if (created == null) return false;
+
+    fingerBloods.insert(0, created);
     notifyListeners();
+    return true;
+  }
+
+  Future<void> deleteFingerBlood(String id) async {
+    final ok = await _repository.delete(id);
+    if (ok) {
+      fingerBloods.removeWhere((f) => f.id == id);
+      notifyListeners();
+    }
   }
 }

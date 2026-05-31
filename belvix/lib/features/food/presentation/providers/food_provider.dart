@@ -1,76 +1,58 @@
 import 'package:flutter/material.dart';
 
 import '../../data/models/food_model.dart';
+import '../../data/repository/food_repository_impl.dart';
 
-import '../../../../core/constants/app_globals.dart';
+class FoodProvider extends ChangeNotifier {
+  final FoodRepository _repository = FoodRepository();
 
-class FoodProvider
-    extends ChangeNotifier {
   bool isLoading = false;
 
   List<FoodModel> foods = [];
 
   Future<void> fetchFoods() async {
-    foods = [
-      FoodModel(
-        id: "1",
+    isLoading = true;
+    notifyListeners();
 
-        title: "Apple",
+    foods = await _repository.list();
 
-        calories: 95,
-
-        carbs: 25,
-
-        image: "",
-
-        time: "08:30 AM",
-      ),
-
-      FoodModel(
-        id: "2",
-
-        title: "Rice Bowl",
-
-        calories: 220,
-
-        carbs: 45,
-
-        image: "",
-
-        time: "01:00 PM",
-      ),
-    ];
-
+    isLoading = false;
     notifyListeners();
   }
 
-  Future<void> addFood({
+  Future<bool> addFood({
     required String title,
     required int calories,
     required int carbs,
+    int protein = 0,
+    int fat = 0,
+    int fiber = 0,
   }) async {
-    foods.insert(
-      0,
+    final created = await _repository.create(
       FoodModel(
-        id: DateTime.now()
-            .toString(),
-
+        id: "",
         title: title,
-
         calories: calories,
-
         carbs: carbs,
-
-        image: "",
-
-        time: TimeOfDay.now()
-            .format(
-          navigatorKey
-              .currentContext!,
-        ),
+        protein: protein,
+        fat: fat,
+        fiber: fiber,
+        loggedAt: DateTime.now(),
       ),
     );
 
+    if (created == null) return false;
+
+    foods.insert(0, created);
     notifyListeners();
+    return true;
+  }
+
+  Future<void> deleteFood(String id) async {
+    final ok = await _repository.delete(id);
+    if (ok) {
+      foods.removeWhere((f) => f.id == id);
+      notifyListeners();
+    }
   }
 }

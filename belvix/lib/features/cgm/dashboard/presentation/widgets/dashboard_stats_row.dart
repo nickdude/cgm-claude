@@ -33,25 +33,13 @@ class DashboardStatsRow extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: _StatCell(
-            value: '$stdDev',
-            unit: 'mg/dL',
-            label: 'Std. Dev',
-          ),
+          child: _StatCell(value: '$stdDev', unit: 'mg/dL', label: 'Std. Dev'),
         ),
         Expanded(
-          child: _StatCell(
-            value: spikeTime,
-            label: 'Spike Time',
-            alert: true,
-          ),
+          child: _StatCell(value: spikeTime, label: 'Spike Time', alert: true),
         ),
         Expanded(
-          child: _StatCell(
-            value: '$spikeCount',
-            label: 'Spike',
-            alert: true,
-          ),
+          child: _StatCell(value: '$spikeCount', label: 'Spike', alert: true),
         ),
       ],
     );

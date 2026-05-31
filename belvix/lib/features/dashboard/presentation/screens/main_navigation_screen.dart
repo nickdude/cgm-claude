@@ -134,38 +134,38 @@ class _QuickActionSheetWrapper extends StatelessWidget {
             clipBehavior: Clip.none,
             alignment: Alignment.bottomCenter,
             children: [
-              Container(
-                width: double.infinity,
+              ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 420),
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 46),
-                decoration: BoxDecoration(
+                child: Material(
                   color: const Color(0xFF151D23),
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x55000000),
-                      blurRadius: 22,
-                      offset: Offset(0, 10),
-                    ),
-                  ],
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  elevation: 10,
+                  shadowColor: const Color(0x55000000),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 46),
+                    child: SizedBox(width: double.infinity, child: child),
+                  ),
                 ),
-                child: child,
               ),
               Positioned(
                 bottom: -38,
                 child: GestureDetector(
                   onTap: onClose,
-                  child: Container(
-                    width: 76,
-                    height: 76,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.close,
-                      color: Colors.black,
-                      size: 34,
+                  child: Material(
+                    color: Colors.white,
+                    shape: const CircleBorder(),
+                    child: const SizedBox(
+                      width: 76,
+                      height: 76,
+                      child: Center(
+                        child: Icon(
+                          Icons.close,
+                          color: Colors.black,
+                          size: 34,
+                        ),
+                      ),
                     ),
                   ),
                 ),

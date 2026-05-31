@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../../core/widgets/app_surface.dart';
 import 'dashboard_theme.dart';
 
 /// "Metabolic Score" card sitting under the gauge.
@@ -29,16 +30,12 @@ class MetabolicScoreCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return AppSurface(
       padding: const EdgeInsets.symmetric(
         horizontal: DashboardTheme.space20,
         vertical: DashboardTheme.space16,
       ),
-      decoration: BoxDecoration(
-        color: DashboardTheme.surface,
-        borderRadius: BorderRadius.circular(DashboardTheme.radiusLg),
-        boxShadow: DashboardTheme.cardShadow,
-      ),
+      radius: DashboardTheme.radiusLg,
       child: Column(
         children: [
           Row(

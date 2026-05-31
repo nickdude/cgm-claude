@@ -19,13 +19,16 @@ class Reveal extends StatefulWidget {
   State<Reveal> createState() => _RevealState();
 }
 
-class _RevealState extends State<Reveal>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller =
-      AnimationController(vsync: this, duration: widget.duration);
+class _RevealState extends State<Reveal> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: widget.duration,
+  );
 
-  late final Animation<double> _fade =
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+  late final Animation<double> _fade = CurvedAnimation(
+    parent: _controller,
+    curve: Curves.easeOut,
+  );
 
   late final Animation<Offset> _slide = Tween<Offset>(
     begin: const Offset(0, 0.08),

@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../../../../../core/widgets/app_surface.dart';
 import 'dashboard_stats_row.dart';
 import 'dashboard_theme.dart';
-import 'glucose_chart.dart';
 
 /// Glucose chart container matching the figma reference.
 ///
-/// Wraps the existing [GlucoseChart] (logic + tooltips preserved) and
-/// pins decorative overlays on top: a floating "spike detected" pill,
-/// the timestamp + value of the most recent reading, and the four-stat
-/// summary row underneath.
+/// Wraps the passed-in chart widget and pins decorative overlays on top:
+/// a floating "spike detected" pill, the timestamp + value of the most
+/// recent reading, and the four-stat summary row underneath.
 class GlucoseChartCard extends StatelessWidget {
   const GlucoseChartCard({
     super.key,
@@ -23,8 +22,8 @@ class GlucoseChartCard extends StatelessWidget {
     required this.spikeCount,
   });
 
-  /// The actual [GlucoseChart] widget (kept external so we can preserve
-  /// its zoom / touch / tooltip behaviour without re-implementing it).
+  /// The chart widget to render (kept external so the container stays
+  /// agnostic to the chart implementation).
   final Widget chart;
 
   /// Whether to show the floating black "Hyperglycemic event" tooltip.
@@ -43,18 +42,9 @@ class GlucoseChartCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(
-        14,
-        18,
-        14,
-        18,
-      ),
-      decoration: BoxDecoration(
-        color: DashboardTheme.surface,
-        borderRadius: BorderRadius.circular(DashboardTheme.radiusLg),
-        boxShadow: DashboardTheme.cardShadow,
-      ),
+    return AppSurface(
+      padding: const EdgeInsets.fromLTRB(14, 18, 14, 18),
+      radius: DashboardTheme.radiusLg,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -147,10 +137,7 @@ class _ReadingPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 14,
-        vertical: 6,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       decoration: BoxDecoration(
         color: DashboardTheme.surface,
         borderRadius: BorderRadius.circular(DashboardTheme.radiusSm),
@@ -183,36 +170,6 @@ class _ReadingPill extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Dark floating tooltip — figma's "Hyperglycemic event detected".
-class _SpikeTooltip extends StatelessWidget {
-  const _SpikeTooltip({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 14,
-        vertical: 10,
-      ),
-      decoration: BoxDecoration(
-        color: DashboardTheme.callout,
-        borderRadius: BorderRadius.circular(DashboardTheme.radiusPill),
-        boxShadow: DashboardTheme.calloutShadow,
-      ),
-      child: Text(
-        message,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12.5,
-          fontWeight: FontWeight.w600,
-        ),
       ),
     );
   }

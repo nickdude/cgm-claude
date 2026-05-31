@@ -55,6 +55,26 @@ class CgmSessionManager {
 
   int _retryAttempt = 0;
 
+  /// Wall-clock time the last glucose frame arrived. Drives the
+  /// stale-reading watchdog.
+  DateTime? _lastReadingAt;
+
+  Timer? _staleWatchdog;
+
+  /// The sensor's reading cadence in minutes, taken from `deviceInfo`.
+  /// Defaults to 5 until the device reports its real interval.
+  int _measurementIntervalMin = 5;
+
+  /// How long without a reading (while we believe we're connected) before
+  /// forcing a reconnect. Derived from the device's measurement interval so
+  /// we tolerate a missed cycle without churning the connection: ~2 missed
+  /// readings, clamped to a sane [5, 20] minute range.
+  Duration get _staleThreshold {
+    final minutes =
+        (_measurementIntervalMin * 2 + 1).clamp(5, 20);
+    return Duration(minutes: minutes);
+  }
+
   final List<Duration>
       _retrySchedule = const [
     Duration(seconds: 3),
@@ -84,6 +104,8 @@ class CgmSessionManager {
     _bootstrapped = true;
 
     _attachSdkStream();
+
+    _startStaleWatchdog();
 
     _bluetoothEnabled =
         await CgmSdk.isBluetoothEnabled();
@@ -417,6 +439,60 @@ class CgmSessionManager {
     }
   }
 
+  /// Periodic watchdog: when we believe we're connected but no glucose
+  /// frame has arrived within [_staleThreshold], the BLE link has
+  /// silently died — force a reconnect. Mirrors the reference app's
+  /// heartbeat-driven "rescan if newest reading is stale" behaviour.
+  void _startStaleWatchdog() {
+    _staleWatchdog?.cancel();
+
+    _staleWatchdog = Timer.periodic(
+      const Duration(minutes: 1),
+      (_) => _checkStaleReadings(),
+    );
+  }
+
+  void _checkStaleReadings() {
+    if (!_autoReconnect) return;
+
+    if (_state.sn == null) return;
+
+    if (!_bluetoothEnabled) return;
+
+    // Only meaningful while we think data should be flowing.
+    if (_state.status !=
+            CGMConnectionStatus.active &&
+        _state.status !=
+            CGMConnectionStatus.syncing) {
+      return;
+    }
+
+    if (_attemptInFlight) return;
+
+    final last = _lastReadingAt;
+
+    if (last == null) return;
+
+    if (DateTime.now()
+            .difference(last) <=
+        _staleThreshold) {
+      return;
+    }
+
+    debugPrint(
+      "CGM readings stale (>${_staleThreshold.inMinutes}m) — forcing reconnect",
+    );
+
+    // Avoid an immediate re-trigger before the next frame lands.
+    _lastReadingAt = DateTime.now();
+
+    _retryAttempt = 0;
+
+    _attemptConnect(
+      reason: "stale_readings",
+    );
+  }
+
   void _onSdkEvent(
     Map<String, dynamic> event,
   ) {
@@ -466,8 +542,16 @@ class CgmSessionManager {
         );
         break;
 
+      case "glucoseData":
+        // Only the arrival time matters here — the dashboard provider
+        // owns the actual readings. Resets the staleness clock.
+        _lastReadingAt = DateTime.now();
+        break;
+
       case "connected":
         _retryAttempt = 0;
+
+        _lastReadingAt = DateTime.now();
 
         _emit(
           _state.copyWith(
@@ -675,6 +759,16 @@ class CgmSessionManager {
         _state.sn;
 
     if (sn == null) return;
+
+    // Capture the sensor's reading cadence so the stale watchdog adapts to
+    // the actual device (the SDK reports it in seconds when >= 60).
+    final rawInterval =
+        (event["measurementInterval"] as num?)
+            ?.toInt();
+    if (rawInterval != null && rawInterval > 0) {
+      _measurementIntervalMin =
+          rawInterval >= 60 ? rawInterval ~/ 60 : rawInterval;
+    }
 
     final activatedSec =
         (event["deviceActivateTimestamp"]

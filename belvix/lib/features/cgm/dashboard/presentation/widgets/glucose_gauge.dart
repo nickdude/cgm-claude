@@ -121,11 +121,11 @@ class _GaugePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final centre = size.center(Offset.zero);
     final outerR = size.width / 2 - 4;
-    final innerR = outerR - 18;
+    final innerR = outerR - 24;
 
     final paint = Paint()
       ..strokeCap = StrokeCap.round
-      ..strokeWidth = 2.6;
+      ..strokeWidth = 3;
 
     final activeTo = (fill * _tickCount).round();
 
@@ -133,9 +133,7 @@ class _GaugePainter extends CustomPainter {
       final t = i / (_tickCount - 1);
       final angle = _startAngle + (_sweep * t);
 
-      paint.color = i < activeTo
-          ? DashboardTheme.accent
-          : DashboardTheme.track;
+      paint.color = i < activeTo ? DashboardTheme.accent : DashboardTheme.track;
 
       final inner = Offset(
         centre.dx + innerR * math.cos(angle),

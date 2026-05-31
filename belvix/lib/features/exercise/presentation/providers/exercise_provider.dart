@@ -1,75 +1,52 @@
 import 'package:flutter/material.dart';
 
 import '../../data/models/exercise_model.dart';
-import '../../../../core/constants/app_globals.dart';
+import '../../data/repository/exercise_repository_impl.dart';
 
-class ExerciseProvider
-    extends ChangeNotifier {
-  List<ExerciseModel> exercises =
-      [];
+class ExerciseProvider extends ChangeNotifier {
+  final ExerciseRepository _repository = ExerciseRepository();
+
+  bool isLoading = false;
+
+  List<ExerciseModel> exercises = [];
 
   Future<void> fetchExercises() async {
-    exercises = [
-      ExerciseModel(
-        id: "1",
+    isLoading = true;
+    notifyListeners();
 
-        title: "Morning Walk",
+    exercises = await _repository.list();
 
-        duration: 30,
-
-        caloriesBurned: 180,
-
-        image: "",
-
-        time: "07:30 AM",
-      ),
-
-      ExerciseModel(
-        id: "2",
-
-        title: "Gym Workout",
-
-        duration: 60,
-
-        caloriesBurned: 420,
-
-        image: "",
-
-        time: "06:00 PM",
-      ),
-    ];
-
+    isLoading = false;
     notifyListeners();
   }
 
-  Future<void> addExercise({
+  Future<bool> addExercise({
     required String title,
     required int duration,
     required int caloriesBurned,
   }) async {
-    exercises.insert(
-      0,
+    final created = await _repository.create(
       ExerciseModel(
-        id: DateTime.now()
-            .toString(),
-
+        id: "",
         title: title,
-
         duration: duration,
-
-        caloriesBurned:
-            caloriesBurned,
-
-        image: "",
-
-        time: TimeOfDay.now()
-            .format(
-          navigatorKey
-              .currentContext!,
-        ),
+        caloriesBurned: caloriesBurned,
+        loggedAt: DateTime.now(),
       ),
     );
 
+    if (created == null) return false;
+
+    exercises.insert(0, created);
     notifyListeners();
+    return true;
+  }
+
+  Future<void> deleteExercise(String id) async {
+    final ok = await _repository.delete(id);
+    if (ok) {
+      exercises.removeWhere((e) => e.id == id);
+      notifyListeners();
+    }
   }
 }

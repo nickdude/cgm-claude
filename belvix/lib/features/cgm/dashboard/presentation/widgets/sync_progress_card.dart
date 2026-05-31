@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../../core/widgets/app_surface.dart';
+
 class SyncProgressCard extends StatelessWidget {
   final double progress;
 
@@ -16,35 +18,19 @@ class SyncProgressCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return AppSurface(
       padding: const EdgeInsets.all(18),
-
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFFFFFF), Color(0xFFF8FAFC)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE7EEF7)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0D0F172A),
-            blurRadius: 18,
-            offset: Offset(0, 10),
-          ),
-        ],
-      ),
-
+      radius: 24,
+      borderColor: const Color(0xFFE7EEF7),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Container(
-                height: 12,
-                width: 12,
-                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              Material(
+                color: color,
+                shape: const CircleBorder(),
+                child: const SizedBox(height: 12, width: 12),
               ),
               const SizedBox(width: 10),
               Text(

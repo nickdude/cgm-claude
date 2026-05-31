@@ -31,6 +31,20 @@ class _AddFoodBottomSheetState
   final carbsController =
       TextEditingController();
 
+  final proteinController =
+      TextEditingController();
+
+  final fatController =
+      TextEditingController();
+
+  final fiberController =
+      TextEditingController();
+
+  bool _saving = false;
+
+  int _parse(TextEditingController c) =>
+      int.tryParse(c.text.trim()) ?? 0;
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -92,7 +106,42 @@ class _AddFoodBottomSheetState
               controller:
                   carbsController,
 
-              hint: "Carbs",
+              hint: "Carbs (g)",
+
+              keyboardType:
+                  TextInputType.number,
+            ),
+
+            const SizedBox(height: 20),
+
+            CustomTextField(
+              controller:
+                  proteinController,
+
+              hint: "Protein (g)",
+
+              keyboardType:
+                  TextInputType.number,
+            ),
+
+            const SizedBox(height: 20),
+
+            CustomTextField(
+              controller: fatController,
+
+              hint: "Fat (g)",
+
+              keyboardType:
+                  TextInputType.number,
+            ),
+
+            const SizedBox(height: 20),
+
+            CustomTextField(
+              controller:
+                  fiberController,
+
+              hint: "Fiber (g)",
 
               keyboardType:
                   TextInputType.number,
@@ -101,31 +150,74 @@ class _AddFoodBottomSheetState
             const SizedBox(height: 30),
 
             PrimaryButton(
-              title: "Save Food",
+              title:
+                  _saving ? "Saving…" : "Save Food",
 
               onTap: () async {
-                await context
+                if (_saving) return;
+
+                final title =
+                    titleController.text
+                        .trim();
+                if (title.isEmpty) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        "Please enter a food name",
+                      ),
+                    ),
+                  );
+                  return;
+                }
+
+                setState(
+                  () => _saving = true,
+                );
+
+                final ok = await context
                     .read<FoodProvider>()
                     .addFood(
-                      title:
-                          titleController
-                              .text,
-
-                      calories:
-                          int.parse(
-                        caloriesController
-                            .text,
+                      title: title,
+                      calories: _parse(
+                        caloriesController,
                       ),
-
-                      carbs: int.parse(
-                        carbsController
-                            .text,
+                      carbs: _parse(
+                        carbsController,
+                      ),
+                      protein: _parse(
+                        proteinController,
+                      ),
+                      fat: _parse(
+                        fatController,
+                      ),
+                      fiber: _parse(
+                        fiberController,
                       ),
                     );
 
-                Navigator.pop(
-                  context,
-                );
+                if (!context.mounted) {
+                  return;
+                }
+
+                if (ok) {
+                  Navigator.pop(context);
+                } else {
+                  setState(
+                    () =>
+                        _saving = false,
+                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        "Couldn't save food. Try again.",
+                      ),
+                    ),
+                  );
+                }
               },
             ),
 

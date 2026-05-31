@@ -1,63 +1,50 @@
 import 'package:flutter/material.dart';
 
 import '../../data/models/insulin_model.dart';
+import '../../data/repository/insulin_repository_impl.dart';
 
-import '../../../../core/constants/app_globals.dart';
+class InsulinProvider extends ChangeNotifier {
+  final InsulinRepository _repository = InsulinRepository();
 
-class InsulinProvider
-    extends ChangeNotifier {
-  List<InsulinModel> insulins =
-      [];
+  bool isLoading = false;
+
+  List<InsulinModel> insulins = [];
 
   Future<void> fetchInsulins() async {
-    insulins = [
-      InsulinModel(
-        id: "1",
+    isLoading = true;
+    notifyListeners();
 
-        insulinType: "Rapid",
+    insulins = await _repository.list();
 
-        dosage: 5,
-
-        time: "08:00 AM",
-      ),
-
-      InsulinModel(
-        id: "2",
-
-        insulinType: "Long Acting",
-
-        dosage: 12,
-
-        time: "10:00 PM",
-      ),
-    ];
-
+    isLoading = false;
     notifyListeners();
   }
 
-  Future<void> addInsulin({
+  Future<bool> addInsulin({
     required String insulinType,
     required int dosage,
   }) async {
-    insulins.insert(
-      0,
+    final created = await _repository.create(
       InsulinModel(
-        id: DateTime.now()
-            .toString(),
-
-        insulinType:
-            insulinType,
-
+        id: "",
+        insulinType: insulinType,
         dosage: dosage,
-
-        time: TimeOfDay.now()
-            .format(
-          navigatorKey
-              .currentContext!,
-        ),
+        loggedAt: DateTime.now(),
       ),
     );
 
+    if (created == null) return false;
+
+    insulins.insert(0, created);
     notifyListeners();
+    return true;
+  }
+
+  Future<void> deleteInsulin(String id) async {
+    final ok = await _repository.delete(id);
+    if (ok) {
+      insulins.removeWhere((i) => i.id == id);
+      notifyListeners();
+    }
   }
 }

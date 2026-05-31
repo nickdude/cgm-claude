@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import 'dashboard_theme.dart';
 
 /// One day worth of data shown in the week strip.
 class WeekDayScore {
   const WeekDayScore({
+    required this.date,
     required this.label,
     this.score,
     this.severity = ScoreSeverity.good,
     this.enabled = true,
   });
+
+  /// The calendar day this chip represents.
+  final DateTime date;
 
   /// Single-letter weekday label, e.g. "W".
   final String label;
@@ -26,264 +31,238 @@ class WeekDayScore {
 
 enum ScoreSeverity { good, warn, bad }
 
-/// Top row of the dashboard — 7 day chips with score pills.
+/// Horizontally scrollable date selector. Shows the selected day's full
+/// date on top (tap it to open a calendar and jump to any date / month),
+/// then a scrollable row of day chips (weekday + date number + average-
+/// glucose pill). Tapping a chip selects that day; the strip auto-scrolls
+/// to keep the selected day in view.
 ///
-/// Consecutive days with scores share a single oblong "joined" pill,
-/// matching `figma-screenshot/dashboard/date selector with avgglucose score.png`.
-/// The selected chip gets the filled dark capsule on the label row.
-class WeekScoreStrip extends StatelessWidget {
+/// Surfaces render via [Material] (not `Container`+`BoxDecoration`) so the
+/// selected-day fill and score pills paint correctly on Impeller Android
+/// GPUs that drop BoxDecoration fills.
+class WeekScoreStrip extends StatefulWidget {
   const WeekScoreStrip({
     super.key,
     required this.days,
     required this.selectedIndex,
     this.onDayTap,
-  }) : assert(days.length == 7);
+    this.onPickDate,
+  });
 
   final List<WeekDayScore> days;
 
-  /// 0..6 — the currently highlighted day (typically defaults to today).
+  /// Index into [days] of the currently highlighted day.
   final int selectedIndex;
 
   /// Invoked when the user taps a day chip. Disabled chips are no-ops.
   final ValueChanged<int>? onDayTap;
 
+  /// Invoked when the user taps the date header (to open a date picker).
+  final VoidCallback? onPickDate;
+
   @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 80,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final cellWidth = constraints.maxWidth / 7;
+  State<WeekScoreStrip> createState() => _WeekScoreStripState();
+}
 
-          return Stack(
-            children: [
-              // First pass: render the score pills (and joined groups)
-              // so they sit *behind* the chip labels.
-              ..._buildScorePills(cellWidth),
+class _WeekScoreStripState extends State<WeekScoreStrip> {
+  static const double _chipWidth = 52;
 
-              // Second pass: render the day labels + selected indicator.
-              Row(
-                children: [
-                  for (var i = 0; i < 7; i++)
-                    SizedBox(
-                      width: cellWidth,
-                      child: _DayCell(
-                        label: days[i].label,
-                        isSelected: i == selectedIndex,
-                        enabled: days[i].enabled,
-                        onTap: days[i].enabled && onDayTap != null
-                            ? () => onDayTap!(i)
-                            : null,
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          );
-        },
-      ),
+  final ScrollController _controller = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _scrollToSelected(animate: false),
     );
   }
 
-  List<Widget> _buildScorePills(double cellWidth) {
-    final widgets = <Widget>[];
-    var i = 0;
-    while (i < 7) {
-      final day = days[i];
-
-      if (day.score == null) {
-        widgets.add(_EmptyChip(cellWidth: cellWidth, leftIndex: i));
-        i += 1;
-        continue;
-      }
-
-      // Group consecutive scored days with the same severity into a
-      // single joined pill (matches figma's "81  90" capsule).
-      var j = i;
-      while (j + 1 < 7 &&
-          days[j + 1].score != null &&
-          days[j + 1].severity == day.severity) {
-        j += 1;
-      }
-
-      widgets.add(
-        _JoinedPill(
-          cellWidth: cellWidth,
-          leftIndex: i,
-          rightIndex: j,
-          days: days.sublist(i, j + 1),
-        ),
-      );
-
-      i = j + 1;
+  @override
+  void didUpdateWidget(WeekScoreStrip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedIndex != widget.selectedIndex) {
+      _scrollToSelected(animate: true);
     }
+  }
 
-    return widgets;
+  void _scrollToSelected({required bool animate}) {
+    if (!_controller.hasClients) return;
+
+    final viewport = _controller.position.viewportDimension;
+    final target =
+        (widget.selectedIndex * _chipWidth) - (viewport / 2) + (_chipWidth / 2);
+    final clamped = target.clamp(0.0, _controller.position.maxScrollExtent);
+
+    if (animate) {
+      _controller.animateTo(
+        clamped,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    } else {
+      _controller.jumpTo(clamped);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.days.isEmpty) return const SizedBox.shrink();
+
+    final selected =
+        widget.days[widget.selectedIndex.clamp(0, widget.days.length - 1)];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onPickDate,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 12),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  DateFormat('EEEE, d MMMM').format(selected.date),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: DashboardTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Icon(
+                  Icons.expand_more,
+                  size: 20,
+                  color: DashboardTheme.textSecondary,
+                ),
+              ],
+            ),
+          ),
+        ),
+        SizedBox(
+          height: 92,
+          child: ListView.builder(
+            controller: _controller,
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: widget.days.length,
+            itemBuilder: (context, i) => SizedBox(
+              width: _chipWidth,
+              child: _DayChip(
+                day: widget.days[i],
+                isSelected: i == widget.selectedIndex,
+                onTap: widget.days[i].enabled && widget.onDayTap != null
+                    ? () => widget.onDayTap!(i)
+                    : null,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
-class _DayCell extends StatelessWidget {
-  const _DayCell({
-    required this.label,
+class _DayChip extends StatelessWidget {
+  const _DayChip({
+    required this.day,
     required this.isSelected,
-    required this.enabled,
     this.onTap,
   });
 
-  final String label;
+  final WeekDayScore day;
   final bool isSelected;
-  final bool enabled;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final labelColor = enabled
-        ? (isSelected
-            ? Colors.white
-            : DashboardTheme.textSecondary)
-        : DashboardTheme.textMuted;
+    final hasScore = day.score != null;
 
-    return InkResponse(
-      onTap: onTap,
-      radius: 38,
-      containedInkWell: false,
-      highlightShape: BoxShape.circle,
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: isSelected
-              ? Container(
-                  width: 28,
-                  height: 28,
-                  alignment: Alignment.center,
-                  decoration: const BoxDecoration(
-                    color: DashboardTheme.textPrimary,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    label,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                )
-              : SizedBox(
-                  width: 28,
-                  height: 28,
-                  child: Center(
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        color: labelColor,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyChip extends StatelessWidget {
-  const _EmptyChip({required this.cellWidth, required this.leftIndex});
-
-  final double cellWidth;
-  final int leftIndex;
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      left: leftIndex * cellWidth + (cellWidth - 38) / 2,
-      bottom: 6,
-      child: IgnorePointer(
-        child: Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: DashboardTheme.track, width: 1.2),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _JoinedPill extends StatelessWidget {
-  const _JoinedPill({
-    required this.cellWidth,
-    required this.leftIndex,
-    required this.rightIndex,
-    required this.days,
-  });
-
-  final double cellWidth;
-  final int leftIndex;
-  final int rightIndex;
-  final List<WeekDayScore> days;
-
-  @override
-  Widget build(BuildContext context) {
-    final isMulti = leftIndex != rightIndex;
-
-    final bg = switch (days.first.severity) {
+    final pillFg = switch (day.severity) {
+      ScoreSeverity.good => DashboardTheme.accent,
+      ScoreSeverity.warn => DashboardTheme.warn,
+      ScoreSeverity.bad => DashboardTheme.danger,
+    };
+    final pillBg = switch (day.severity) {
       ScoreSeverity.good => DashboardTheme.accentSoft,
       ScoreSeverity.warn => DashboardTheme.warnSoft,
       ScoreSeverity.bad => DashboardTheme.dangerSoft,
     };
 
-    final fg = switch (days.first.severity) {
-      ScoreSeverity.good => DashboardTheme.accent,
-      ScoreSeverity.warn => DashboardTheme.warn,
-      ScoreSeverity.bad => DashboardTheme.danger,
-    };
+    final dateColor = !day.enabled
+        ? DashboardTheme.textMuted
+        : (isSelected ? Colors.white : DashboardTheme.textPrimary);
 
-    final left = leftIndex * cellWidth + (cellWidth - 38) / 2;
-    final right = rightIndex * cellWidth + (cellWidth + 38) / 2;
-
-    return Positioned(
-      left: left,
-      bottom: 6,
-      width: right - left,
-      height: 38,
-      child: IgnorePointer(
-        child: Container(
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(DashboardTheme.radiusPill),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            day.label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+              color: day.enabled
+                  ? DashboardTheme.textSecondary
+                  : DashboardTheme.textMuted,
+            ),
           ),
-          child: isMulti
-              ? Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    for (final d in days)
-                      Text(
-                        '${d.score}',
-                        style: TextStyle(
-                          color: fg,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                  ],
-                )
-              : Center(
-                  child: Text(
-                    '${days.first.score}',
-                    style: TextStyle(
-                      color: fg,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
+          const SizedBox(height: 6),
+          // Date bubble — Material so the selected fill paints on Impeller.
+          Material(
+            color: isSelected
+                ? DashboardTheme.textPrimary
+                : Colors.transparent,
+            shape: const CircleBorder(),
+            child: SizedBox(
+              width: 34,
+              height: 34,
+              child: Center(
+                child: Text(
+                  '${day.date.day}',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: dateColor,
                   ),
                 ),
-        ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Average-glucose pill.
+          Material(
+            color: hasScore ? pillBg : Colors.transparent,
+            shape: hasScore
+                ? const StadiumBorder()
+                : const StadiumBorder(
+                    side: BorderSide(color: DashboardTheme.track, width: 1),
+                  ),
+            child: SizedBox(
+              width: 38,
+              height: 20,
+              child: Center(
+                child: Text(
+                  hasScore ? '${day.score}' : '–',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: hasScore ? pillFg : DashboardTheme.textMuted,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

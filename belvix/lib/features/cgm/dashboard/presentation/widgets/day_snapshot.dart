@@ -36,13 +36,56 @@ class DaySnapshot {
     return ((inRange / readings.length) * 100).round();
   }
 
+  /// Time-out-of-range percentage — the inverse of time-in-range.
+  int get timeOutOfRangePercent =>
+      readings.isEmpty ? 0 : 100 - timeInRangePercent;
+
+  /// Distinct hyperglycemic excursions (>180 mg/dL) lasting ≥15 min.
+  int get hyperEvents => _excursionCount((v) => v > 180);
+
+  /// Distinct hypoglycemic excursions (<70 mg/dL) lasting ≥15 min.
+  int get hypoEvents => _excursionCount((v) => v < 70);
+
+  /// Counts maximal runs of readings matching [test] that last at least
+  /// 15 minutes — one clinical "event" per sustained excursion. A gap of
+  /// more than 30 min between readings ends the current run. [readings] is
+  /// already sorted oldest→newest by [forDay].
+  int _excursionCount(bool Function(double mgdl) test) {
+    var events = 0;
+    DateTime? runStart;
+    DateTime? runEnd;
+    DateTime? prev;
+
+    void close() {
+      if (runStart != null &&
+          runEnd != null &&
+          runEnd!.difference(runStart!).inMinutes >= 15) {
+        events++;
+      }
+      runStart = null;
+      runEnd = null;
+    }
+
+    for (final r in readings) {
+      final brokeGap =
+          prev != null && r.readingAt.difference(prev).inMinutes > 30;
+      if (test(r.glucoseValue)) {
+        if (brokeGap) close();
+        runStart ??= r.readingAt;
+        runEnd = r.readingAt;
+      } else {
+        close();
+      }
+      prev = r.readingAt;
+    }
+    close();
+    return events;
+  }
+
   int get averageGlucose {
     if (readings.isEmpty) return 0;
 
-    final total = readings.fold<double>(
-      0,
-      (acc, r) => acc + r.glucoseValue,
-    );
+    final total = readings.fold<double>(0, (acc, r) => acc + r.glucoseValue);
 
     return (total / readings.length).round();
   }
@@ -51,7 +94,8 @@ class DaySnapshot {
     if (readings.isEmpty) return 0;
 
     final avg = averageGlucose;
-    final variance = readings.fold<double>(
+    final variance =
+        readings.fold<double>(
           0,
           (acc, r) => acc + math.pow(r.glucoseValue - avg, 2).toDouble(),
         ) /
@@ -105,21 +149,19 @@ class DaySnapshot {
   }
 
   /// Build a snapshot for [day] by filtering [allReadings] (any order).
-  static DaySnapshot forDay(
-    DateTime day,
-    List<CgmReadingModel> allReadings,
-  ) {
+  static DaySnapshot forDay(DateTime day, List<CgmReadingModel> allReadings) {
     final dayStart = DateTime(day.year, day.month, day.day);
     final dayEnd = dayStart.add(const Duration(days: 1));
 
-    final filtered = allReadings
-        .where(
-          (r) =>
-              !r.readingAt.isBefore(dayStart) &&
-              r.readingAt.isBefore(dayEnd),
-        )
-        .toList()
-      ..sort((a, b) => a.readingAt.compareTo(b.readingAt));
+    final filtered =
+        allReadings
+            .where(
+              (r) =>
+                  !r.readingAt.isBefore(dayStart) &&
+                  r.readingAt.isBefore(dayEnd),
+            )
+            .toList()
+          ..sort((a, b) => a.readingAt.compareTo(b.readingAt));
 
     return DaySnapshot._(dayStart, filtered);
   }
@@ -127,8 +169,11 @@ class DaySnapshot {
 
 /// Returns the 7 weekdays (Mon..Sun) of the week containing [reference].
 List<DateTime> weekOf(DateTime reference) {
-  final monday = DateTime(reference.year, reference.month, reference.day)
-      .subtract(Duration(days: reference.weekday - 1));
+  final monday = DateTime(
+    reference.year,
+    reference.month,
+    reference.day,
+  ).subtract(Duration(days: reference.weekday - 1));
 
   return List<DateTime>.generate(7, (i) => monday.add(Duration(days: i)));
 }

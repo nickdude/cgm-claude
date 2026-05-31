@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:provider/provider.dart';
 
+import '../../../../core/widgets/app_surface.dart';
 import '../providers/finger_blood_provider.dart';
 
 class FingerBloodScreen
@@ -59,48 +60,27 @@ class _FingerBloodScreenState
               provider
                   .fingerBloods[index];
 
-          return Container(
-            margin:
-                const EdgeInsets.only(
-              bottom: 16,
-            ),
-
-            padding:
-                const EdgeInsets.all(
-              16,
-            ),
-
-            decoration: BoxDecoration(
-              color: Colors.white,
-
-              borderRadius:
-                  BorderRadius.circular(
-                20,
-              ),
-            ),
-
-            child: Row(
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: AppSurface(
+              padding: const EdgeInsets.all(16),
+              radius: 20,
+              child: Row(
               children: [
-                Container(
-                  height: 60,
-                  width: 60,
-
-                  decoration: BoxDecoration(
-                    color:
-                        Colors.red.shade50,
-
-                    borderRadius:
-                        BorderRadius.circular(
-                      16,
-                    ),
+                Material(
+                  color: Colors.red.shade50,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
                   ),
-
-                  child: Icon(
-                    Icons.bloodtype,
-
-                    color:
-                        Colors.red
-                            .shade700,
+                  child: SizedBox(
+                    height: 60,
+                    width: 60,
+                    child: Center(
+                      child: Icon(
+                        Icons.bloodtype,
+                        color: Colors.red.shade700,
+                      ),
+                    ),
                   ),
                 ),
 
@@ -137,6 +117,7 @@ class _FingerBloodScreenState
 
                 Text(item.time),
               ],
+            ),
             ),
           );
         },

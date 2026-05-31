@@ -43,19 +43,11 @@ class DashboardTheme {
 
   // --- Shadows ---
   static const cardShadow = [
-    BoxShadow(
-      color: Color(0x0A0F172A),
-      blurRadius: 18,
-      offset: Offset(0, 6),
-    ),
+    BoxShadow(color: Color(0x0A0F172A), blurRadius: 18, offset: Offset(0, 6)),
   ];
 
   static const calloutShadow = [
-    BoxShadow(
-      color: Color(0x331B1F23),
-      blurRadius: 18,
-      offset: Offset(0, 8),
-    ),
+    BoxShadow(color: Color(0x331B1F23), blurRadius: 18, offset: Offset(0, 8)),
   ];
 
   // --- Type ---

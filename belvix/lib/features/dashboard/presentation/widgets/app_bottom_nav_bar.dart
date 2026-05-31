@@ -38,14 +38,15 @@ class AppBottomNavBar extends StatelessWidget {
             left: 0,
             right: 0,
             bottom: 0,
-            child: Container(
-              height: navHeight,
-              padding: EdgeInsets.only(bottom: bottomInset),
-              decoration: const BoxDecoration(
-                color: Color(0xFFF6F6F6),
-                border: Border(top: BorderSide(color: Color(0xFFE2E2E2))),
-              ),
-              child: Row(
+            child: Material(
+              color: const Color(0xFFF6F6F6),
+              child: Container(
+                height: navHeight,
+                padding: EdgeInsets.only(bottom: bottomInset),
+                decoration: const BoxDecoration(
+                  border: Border(top: BorderSide(color: Color(0xFFE2E2E2))),
+                ),
+                child: Row(
                 children: [
                   Expanded(
                     child: _NavTab(
@@ -77,6 +78,7 @@ class AppBottomNavBar extends StatelessWidget {
                     ),
                   ),
                 ],
+                ),
               ),
             ),
           ),
@@ -151,26 +153,25 @@ class _CenterActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        width: 92,
-        height: 92,
-        decoration: BoxDecoration(
-          color: isOpen ? Colors.white : Colors.black,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: isOpen ? const Color(0xFF0E1318) : Colors.transparent,
-            width: isOpen ? 10 : 0,
-          ),
-        ),
-        child: Center(
-          child: AnimatedRotation(
-            turns: isOpen ? 0.125 : 0,
-            duration: const Duration(milliseconds: 200),
-            child: Icon(
-              isOpen ? Icons.close : Icons.add,
-              color: isOpen ? const Color(0xFF111111) : Colors.white,
-              size: isOpen ? 42 : 40,
+      child: Material(
+        color: isOpen ? Colors.white : Colors.black,
+        shape: isOpen
+            ? const CircleBorder(
+                side: BorderSide(color: Color(0xFF0E1318), width: 10),
+              )
+            : const CircleBorder(),
+        child: SizedBox(
+          width: 92,
+          height: 92,
+          child: Center(
+            child: AnimatedRotation(
+              turns: isOpen ? 0.125 : 0,
+              duration: const Duration(milliseconds: 200),
+              child: Icon(
+                isOpen ? Icons.close : Icons.add,
+                color: isOpen ? const Color(0xFF111111) : Colors.white,
+                size: isOpen ? 42 : 40,
+              ),
             ),
           ),
         ),
@@ -214,26 +215,19 @@ class QuickActionMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
-      decoration: BoxDecoration(
-        color: const Color(0xFF151D23),
-        borderRadius: BorderRadius.circular(30),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x55000000),
-            blurRadius: 22,
-            offset: Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Container(
-        decoration: BoxDecoration(
+    return Material(
+      color: const Color(0xFF151D23),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+      shadowColor: const Color(0x55000000),
+      elevation: 10,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
+        child: Material(
           color: const Color(0xFF343B42),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
           children: [
             for (int i = 0; i < _items.length; i++) ...[
               InkWell(
@@ -269,6 +263,7 @@ class QuickActionMenu extends StatelessWidget {
                 ),
             ],
           ],
+          ),
         ),
       ),
     );

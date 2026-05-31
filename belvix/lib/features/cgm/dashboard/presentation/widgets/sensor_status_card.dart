@@ -22,14 +22,31 @@ class SensorStatusCard extends StatelessWidget {
     return "${device.deviceName} • ${device.serialNumber}";
   }
 
+  // While a sensor is already paired, the session manager keeps
+  // auto-retrying after a transient drop/failure. Surfacing "Connection
+  // Failed" in that window is a false signal, so on the dashboard card we
+  // present it as "Reconnecting" instead.
+  bool _isFalseFailure(CGMProvider provider) =>
+      provider.connectionStatus == CGMConnectionStatus.failed &&
+      provider.activeDevice != null;
+
+  String _titleFor(CGMProvider provider) =>
+      _isFalseFailure(provider) ? "Reconnecting" : provider.connectionText;
+
+  Color _colorFor(CGMProvider provider) =>
+      _isFalseFailure(provider) ? Colors.blue : provider.statusColor;
+
+  bool _showSpinner(CGMProvider provider) =>
+      provider.isReconnecting || _isFalseFailure(provider);
+
   Widget _trailingFor(CGMProvider provider) {
-    if (provider.isReconnecting) {
+    if (_showSpinner(provider)) {
       return SizedBox(
         height: 18,
         width: 18,
         child: CircularProgressIndicator(
           strokeWidth: 2.5,
-          color: provider.statusColor,
+          color: _colorFor(provider),
         ),
       );
     }
@@ -38,12 +55,14 @@ class SensorStatusCard extends StatelessWidget {
       height: 12,
       width: 12,
       decoration: BoxDecoration(
-        color: provider.statusColor,
+        color: _colorFor(provider),
         shape: BoxShape.circle,
       ),
     );
   }
 
+  // Only called when the sensor is not connected (see build). Renders the
+  // contextual failed/retry/pair action for the current disconnected state.
   Widget _actionFor(BuildContext context, CGMProvider provider) {
     switch (provider.connectionStatus) {
       case CGMConnectionStatus.bluetoothOff:
@@ -70,12 +89,12 @@ class SensorStatusCard extends StatelessWidget {
           onTap: () => provider.retryReconnect(),
         );
       case CGMConnectionStatus.failed:
-      case CGMConnectionStatus.authFailed:
-        return _ActionRow(
-          message: provider.lastError ?? "Something went wrong.",
-          buttonLabel: "Retry",
-          onTap: () => provider.retryReconnect(),
-        );
+      // case CGMConnectionStatus.authFailed:
+      //   return _ActionRow(
+      //     message: provider.lastError ?? "Something went wrong.",
+      //     buttonLabel: "Retry",
+      //     onTap: () => provider.retryReconnect(),
+      //   );
       case CGMConnectionStatus.disconnected:
         if (provider.activeDevice == null) {
           return _ActionRow(
@@ -96,6 +115,17 @@ class SensorStatusCard extends StatelessWidget {
     }
   }
 
+  bool _isConnected(CGMProvider provider) {
+    switch (provider.connectionStatus) {
+      case CGMConnectionStatus.active:
+      case CGMConnectionStatus.syncing:
+      case CGMConnectionStatus.warmup:
+        return true;
+      default:
+        return false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<CGMProvider>(
@@ -103,6 +133,8 @@ class SensorStatusCard extends StatelessWidget {
         final device = provider.activeDevice;
 
         final daysLeft = device?.expiresAt.difference(DateTime.now()).inDays;
+
+        final connected = _isConnected(provider);
 
         return Container(
           padding: const EdgeInsets.all(18),
@@ -130,10 +162,10 @@ class SensorStatusCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: provider.statusColor.withValues(alpha: 0.12),
+                      color: _colorFor(provider).withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(Icons.sensors, color: provider.statusColor),
+                    child: Icon(Icons.sensors, color: _colorFor(provider)),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -141,7 +173,7 @@ class SensorStatusCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          provider.connectionText,
+                          _titleFor(provider),
                           style: const TextStyle(
                             fontWeight: FontWeight.w800,
                             fontSize: 16,
@@ -178,8 +210,10 @@ class SensorStatusCard extends StatelessWidget {
                 _metaRow(label: "Serial", value: device.serialNumber),
               ],
 
-              const SizedBox(height: 16),
-              _actionFor(context, provider),
+              if (!connected) ...[
+                const SizedBox(height: 16),
+                _actionFor(context, provider),
+              ],
             ],
           ),
         );
