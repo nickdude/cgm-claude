@@ -23,4 +23,8 @@ class AppAssets {
 
   static const facebookIcon =
       "assets/icons/fb.svg";
+
+  // Dashboard
+  static const trendArrow =
+      "assets/icons/arrow.svg";
 }

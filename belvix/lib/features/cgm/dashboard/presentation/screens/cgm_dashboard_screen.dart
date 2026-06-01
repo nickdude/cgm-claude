@@ -352,6 +352,7 @@ class _GaugeSection extends StatelessWidget {
             value: snapshot.glucose,
             fillFraction: fill,
             trend: trend,
+            timeInRange: provider.timeInRangePercent,
           ),
         );
       },
