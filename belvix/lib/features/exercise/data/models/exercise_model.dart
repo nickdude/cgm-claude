@@ -48,6 +48,7 @@ class ExerciseModel {
         "activityType": title,
         "duration": duration,
         "caloriesBurned": caloriesBurned,
+        "loggedAt": loggedAt.toUtc().toIso8601String(),
         if (image.isNotEmpty) "image": image,
       };
 }

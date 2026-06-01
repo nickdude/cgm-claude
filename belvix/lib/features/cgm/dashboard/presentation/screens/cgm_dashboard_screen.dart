@@ -4,10 +4,15 @@ import 'package:provider/provider.dart';
 
 import '../../../../../core/storage/storage_service.dart';
 import '../../../../../core/widgets/app_surface.dart';
+import '../../../../dashboard/presentation/widgets/app_bottom_nav_bar.dart';
 import '../../../../exercise/presentation/providers/exercise_provider.dart';
+import '../../../../exercise/presentation/widgets/add_exercise_bottomsheet.dart';
 import '../../../../finger_blood/presentation/providers/finger_blood_provider.dart';
+import '../../../../finger_blood/presentation/screens/finger_blood_screen.dart';
 import '../../../../food/presentation/providers/food_provider.dart';
+import '../../../../food/presentation/widgets/add_food_bottomsheet.dart';
 import '../../../../insulin/presentation/providers/insulin_provider.dart';
+import '../../../../insulin/presentation/screens/insulin_screen.dart';
 import '../../../connect/presentation/providers/cgm_provider.dart';
 import '../../../connect/presentation/screens/device_management_screen.dart';
 import '../providers/cgm_dashboard_provider.dart';
@@ -423,6 +428,7 @@ class _ChartSection extends StatelessWidget {
             // in place (preserving zoom/scroll/tooltip) instead of rebuilding.
             key: ValueKey(selectedDay),
             readings: snapshot.readings,
+            onAddAtTime: (time) => _showAddAtTime(context, time),
           ),
           showSpikeTag: snapshot.spikeCount > 0,
           avgGlucose: snapshot.averageGlucose,
@@ -432,6 +438,67 @@ class _ChartSection extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+/// Tapping "+" on a chart point opens the quick-action menu; choosing an
+/// action opens that logger pre-set to log at the tapped reading's time.
+void _showAddAtTime(BuildContext context, DateTime time) {
+  showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (sheetContext) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: QuickActionMenu(
+          onActionTap: (type) {
+            Navigator.pop(sheetContext);
+            _openLoggerFor(context, type, time);
+          },
+        ),
+      ),
+    ),
+  );
+}
+
+void _openLoggerFor(BuildContext context, QuickActionType type, DateTime time) {
+  const sheetShape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+  );
+
+  switch (type) {
+    case QuickActionType.diet:
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.white,
+        shape: sheetShape,
+        builder: (_) => AddFoodBottomSheet(initialTime: time),
+      );
+      break;
+    case QuickActionType.exercise:
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.white,
+        shape: sheetShape,
+        builder: (_) => AddExerciseBottomSheet(initialTime: time),
+      );
+      break;
+    case QuickActionType.insulin:
+      showDialog<void>(
+        context: context,
+        builder: (_) => AddInsulinDialog(initialTime: time),
+      );
+      break;
+    case QuickActionType.fingerBlood:
+      showDialog<void>(
+        context: context,
+        builder: (_) => AddFingerBloodDialog(initialTime: time),
+      );
+      break;
+    case QuickActionType.medicine:
+      break;
   }
 }
 
@@ -834,15 +901,15 @@ class _TimelineSection extends StatelessWidget {
           }
         }
 
-        // Meals.
-        if (food.foods.isNotEmpty) {
+        // Meals — one entry per logged food item.
+        for (final f in food.foods) {
           entries.add(
             _TimelineEntry(
               icon: Icons.restaurant,
               iconColor: DashboardTheme.textPrimary,
-              time: food.foods.first.time,
-              title: 'Meal logged',
-              subtitle: food.foods.map((f) => f.title).join(', '),
+              time: f.time,
+              title: f.title,
+              subtitle: '${f.calories} cal · ${f.carbs}g carbs',
             ),
           );
         }

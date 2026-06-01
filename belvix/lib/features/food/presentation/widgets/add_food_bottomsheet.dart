@@ -12,7 +12,11 @@ class AddFoodBottomSheet
     extends StatefulWidget {
   const AddFoodBottomSheet({
     super.key,
+    this.initialTime,
   });
+
+  /// When set, the entry is logged at this instant instead of "now".
+  final DateTime? initialTime;
 
   @override
   State<AddFoodBottomSheet>
@@ -195,6 +199,8 @@ class _AddFoodBottomSheetState
                       fiber: _parse(
                         fiberController,
                       ),
+                      loggedAt: widget
+                          .initialTime,
                     );
 
                 if (!context.mounted) {

@@ -23,13 +23,14 @@ class FingerBloodProvider extends ChangeNotifier {
   Future<bool> addFingerBlood({
     required int glucoseValue,
     required String notes,
+    DateTime? loggedAt,
   }) async {
     final created = await _repository.create(
       FingerBloodModel(
         id: "",
         glucoseValue: glucoseValue,
         notes: notes,
-        loggedAt: DateTime.now(),
+        loggedAt: loggedAt ?? DateTime.now(),
       ),
     );
 

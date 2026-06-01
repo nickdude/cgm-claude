@@ -24,6 +24,7 @@ class ExerciseProvider extends ChangeNotifier {
     required String title,
     required int duration,
     required int caloriesBurned,
+    DateTime? loggedAt,
   }) async {
     final created = await _repository.create(
       ExerciseModel(
@@ -31,7 +32,7 @@ class ExerciseProvider extends ChangeNotifier {
         title: title,
         duration: duration,
         caloriesBurned: caloriesBurned,
-        loggedAt: DateTime.now(),
+        loggedAt: loggedAt ?? DateTime.now(),
       ),
     );
 

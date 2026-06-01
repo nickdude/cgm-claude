@@ -27,6 +27,7 @@ class FoodProvider extends ChangeNotifier {
     int protein = 0,
     int fat = 0,
     int fiber = 0,
+    DateTime? loggedAt,
   }) async {
     final created = await _repository.create(
       FoodModel(
@@ -37,7 +38,7 @@ class FoodProvider extends ChangeNotifier {
         protein: protein,
         fat: fat,
         fiber: fiber,
-        loggedAt: DateTime.now(),
+        loggedAt: loggedAt ?? DateTime.now(),
       ),
     );
 

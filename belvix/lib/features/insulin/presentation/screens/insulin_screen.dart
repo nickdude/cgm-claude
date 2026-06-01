@@ -141,7 +141,11 @@ class AddInsulinDialog
     extends StatefulWidget {
   const AddInsulinDialog({
     super.key,
+    this.initialTime,
   });
+
+  /// When set, the entry is logged at this instant instead of "now".
+  final DateTime? initialTime;
 
   @override
   State<AddInsulinDialog>
@@ -235,6 +239,9 @@ class _AddInsulinDialogState
                     dosageController
                         .text,
                   ),
+
+                  loggedAt: widget
+                      .initialTime,
                 );
 
             Navigator.pop(context);

@@ -145,7 +145,11 @@ class AddFingerBloodDialog
     extends StatefulWidget {
   const AddFingerBloodDialog({
     super.key,
+    this.initialTime,
   });
+
+  /// When set, the entry is logged at this instant instead of "now".
+  final DateTime? initialTime;
 
   @override
   State<AddFingerBloodDialog>
@@ -227,6 +231,9 @@ class _AddFingerBloodDialogState
                   notes:
                       notesController
                           .text,
+
+                  loggedAt: widget
+                      .initialTime,
                 );
 
             Navigator.pop(

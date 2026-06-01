@@ -22,9 +22,17 @@ import 'dashboard_theme.dart';
 /// the live SDK `glucoseData` stream plus backend `/cgm-reading/list`
 /// history, filtered to that day. This widget never mutates them.
 class GlucoseTrendChart extends StatefulWidget {
-  const GlucoseTrendChart({super.key, required this.readings});
+  const GlucoseTrendChart({
+    super.key,
+    required this.readings,
+    this.onAddAtTime,
+  });
 
   final List<CgmReadingModel> readings;
+
+  /// Called when the user taps the "+" on a reading's tooltip — lets the
+  /// host add food/insulin/exercise/finger-blood at that exact instant.
+  final void Function(DateTime time)? onAddAtTime;
 
   // Target band (mg/dL).
   static const double targetLow = 70;
@@ -53,6 +61,10 @@ class _GlucoseTrendChartState extends State<GlucoseTrendChart> {
 
   // Index of the reading whose tooltip is shown (null = none).
   int? _selectedIndex;
+
+  // Absolute instant (UTC) at the tapped X — the time "where you clicked",
+  // used for the tooltip label and the add action.
+  DateTime? _selectedTime;
 
   // Gesture anchors.
   double _scaleStart = 1.0;
@@ -174,7 +186,46 @@ class _GlucoseTrendChartState extends State<GlucoseTrendChart> {
 
   void _select(double localX) {
     final i = _indexAt(localX);
-    if (i != _selectedIndex) setState(() => _selectedIndex = i);
+    final ms = _msAtX(localX);
+    setState(() {
+      _selectedIndex = i;
+      _selectedTime = ms == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(ms.round(), isUtc: true);
+    });
+  }
+
+  /// Absolute epoch-ms at a local touch X (the X-axis time you clicked).
+  double? _msAtX(double localX) {
+    if (widget.readings.length < 2 || _plotW <= 0) return null;
+    final tMin = widget.readings.first.readingAt.millisecondsSinceEpoch
+        .toDouble();
+    final tMax = widget.readings.last.readingAt.millisecondsSinceEpoch
+        .toDouble();
+    final tSpan = (tMax - tMin) == 0 ? 1.0 : (tMax - tMin);
+    final virtualW = _plotW * _scale;
+    final frac = ((_offsetX + localX) / virtualW).clamp(0.0, 1.0);
+    return tMin + frac * tSpan;
+  }
+
+  // Screen position of a reading — mirrors the painter's dx/dy so the
+  // overlaid tooltip widget lines up with the painted guide + dot.
+  double _xForIndex(int i) {
+    final tMin = widget.readings.first.readingAt.millisecondsSinceEpoch
+        .toDouble();
+    final tMax = widget.readings.last.readingAt.millisecondsSinceEpoch
+        .toDouble();
+    final tSpan = (tMax - tMin) == 0 ? 1.0 : (tMax - tMin);
+    final virtualW = _plotW * _scale;
+    final t = widget.readings[i].readingAt.millisecondsSinceEpoch.toDouble();
+    return virtualW * (t - tMin) / tSpan - _offsetX;
+  }
+
+  double _yForValue(double v, double height) {
+    const topPad = 10.0, bottomPad = 22.0;
+    final bottom = height - bottomPad;
+    final cv = v.clamp(_yMin, _yMax);
+    return bottom - (bottom - topPad) * (cv - _yMin) / (_yMax - _yMin);
   }
 
   @override
@@ -189,25 +240,134 @@ class _GlucoseTrendChartState extends State<GlucoseTrendChart> {
         // Defensive clamp in case layout changed since the last gesture.
         _offsetX = _offsetX.clamp(0.0, _maxOffset(_plotW)).toDouble();
 
-        return GestureDetector(
-          onScaleStart: _onScaleStart,
-          onScaleUpdate: _onScaleUpdate,
-          onTapUp: (d) => _select(d.localPosition.dx),
-          onLongPressStart: (d) => _select(d.localPosition.dx),
-          onLongPressMoveUpdate: (d) => _select(d.localPosition.dx),
-          child: CustomPaint(
-            painter: _TrendPainter(
-              readings: widget.readings,
-              scale: _scale,
-              offsetX: _offsetX,
-              yMin: _yMin,
-              yMax: _yMax,
-              selectedIndex: _selectedIndex,
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            GestureDetector(
+              onScaleStart: _onScaleStart,
+              onScaleUpdate: _onScaleUpdate,
+              onTapUp: (d) => _select(d.localPosition.dx),
+              onLongPressStart: (d) => _select(d.localPosition.dx),
+              onLongPressMoveUpdate: (d) => _select(d.localPosition.dx),
+              child: CustomPaint(
+                painter: _TrendPainter(
+                  readings: widget.readings,
+                  scale: _scale,
+                  offsetX: _offsetX,
+                  yMin: _yMin,
+                  yMax: _yMax,
+                  selectedIndex: _selectedIndex,
+                ),
+                child: const SizedBox.expand(),
+              ),
             ),
-            child: const SizedBox.expand(),
-          ),
+            ..._buildTooltip(c.maxHeight),
+          ],
         );
       },
+    );
+  }
+
+  /// Tappable tooltip widget (value + time + "+" button) overlaid above
+  /// the selected reading. Empty when nothing is selected / off-screen.
+  List<Widget> _buildTooltip(double height) {
+    final idx = _selectedIndex;
+    if (idx == null || idx < 0 || idx >= widget.readings.length)
+      return const [];
+
+    final px = _xForIndex(idx);
+    if (px < 0 || px > _plotW) return const [];
+
+    final r = widget.readings[idx];
+    final py = _yForValue(r.glucoseValue, height);
+    final above = py > 76;
+
+    // Keep the centred pill mostly on-screen at the edges.
+    final tx = px.clamp(86.0, math.max(86.0, _plotW - 86.0)).toDouble();
+
+    final time = _selectedTime ?? r.readingAt;
+
+    return [
+      Positioned(
+        left: tx,
+        top: above ? py - 12 : py + 12,
+        child: FractionalTranslation(
+          translation: Offset(-0.5, above ? -1.0 : 0.0),
+          child: _AddTooltip(
+            valueText: '${r.glucoseValue.round()} mg/dL',
+            timeText: DateFormat('h:mm a').format(time.toLocal()),
+            onAdd: () => widget.onAddAtTime?.call(time),
+          ),
+        ),
+      ),
+    ];
+  }
+}
+
+/// Dark pill tooltip showing the reading + a green "+" button. The dark
+/// surface is painted by [Material] (a reliable paint path) — a plain
+/// BoxDecoration fill renders transparent on some devices.
+class _AddTooltip extends StatelessWidget {
+  const _AddTooltip({
+    required this.valueText,
+    required this.timeText,
+    required this.onAdd,
+  });
+
+  final String valueText;
+  final String timeText;
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xF21B1F23),
+      borderRadius: BorderRadius.circular(24),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 7, 7, 7),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  valueText,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  timeText,
+                  style: const TextStyle(
+                    color: Color(0xFFC7CDD6),
+                    fontWeight: FontWeight.w500,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 12),
+            Material(
+              color: DashboardTheme.accent,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: onAdd,
+                child: const SizedBox(
+                  width: 34,
+                  height: 34,
+                  child: Icon(Icons.add, color: Colors.white, size: 20),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -322,50 +482,8 @@ class _TrendPainter extends CustomPainter {
     );
     canvas.drawCircle(Offset(px, py), 5.5, Paint()..color = Colors.white);
     canvas.drawCircle(Offset(px, py), 4, Paint()..color = color);
-
-    // Tooltip text lines. readingAt is UTC; show device-local time.
-    final timeStr = DateFormat('h:mm a').format(r.readingAt.toLocal());
-
-    final l1 = _ttText(
-      '${r.glucoseValue.round()} mg/dL',
-      Colors.white,
-      FontWeight.w800,
-      14,
-    );
-    final l2 = _ttText(timeStr, const Color(0xFFC7CDD6), FontWeight.w500, 12);
-    final l3 = _ttText(r.trend, color, FontWeight.w700, 12);
-
-    const padH = 12.0, padV = 10.0, gap = 3.0;
-    final boxW = [l1.width, l2.width, l3.width].reduce(math.max) + padH * 2;
-    final boxH = l1.height + l2.height + l3.height + gap * 2 + padV * 2;
-
-    var bx = px - boxW / 2;
-    bx = bx.clamp(plot.left, plot.right - boxW);
-    var by = py - boxH - 14;
-    if (by < plot.top) by = py + 14; // flip below if no room above
-
-    final rect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(bx, by, boxW, boxH),
-      const Radius.circular(10),
-    );
-    canvas.drawRRect(rect, Paint()..color = const Color(0xF21B1F23));
-
-    var ty = by + padV;
-    l1.paint(canvas, Offset(bx + padH, ty));
-    ty += l1.height + gap;
-    l2.paint(canvas, Offset(bx + padH, ty));
-    ty += l2.height + gap;
-    l3.paint(canvas, Offset(bx + padH, ty));
-  }
-
-  TextPainter _ttText(String s, Color c, FontWeight w, double size) {
-    return TextPainter(
-      text: TextSpan(
-        text: s,
-        style: TextStyle(color: c, fontWeight: w, fontSize: size),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
+    // The text box + "+" button are drawn as a Flutter widget overlay
+    // (see _AddTooltip) so the button is tappable.
   }
 
   // --- Visibility culling (binary-ish scan over sorted points) ---

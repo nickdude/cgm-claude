@@ -36,5 +36,6 @@ class InsulinModel {
   Map<String, dynamic> toCreateJson() => {
         "insulinType": insulinType,
         "dosage": dosage,
+        "loggedAt": loggedAt.toUtc().toIso8601String(),
       };
 }

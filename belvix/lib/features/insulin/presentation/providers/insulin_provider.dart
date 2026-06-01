@@ -23,13 +23,14 @@ class InsulinProvider extends ChangeNotifier {
   Future<bool> addInsulin({
     required String insulinType,
     required int dosage,
+    DateTime? loggedAt,
   }) async {
     final created = await _repository.create(
       InsulinModel(
         id: "",
         insulinType: insulinType,
         dosage: dosage,
-        loggedAt: DateTime.now(),
+        loggedAt: loggedAt ?? DateTime.now(),
       ),
     );
 

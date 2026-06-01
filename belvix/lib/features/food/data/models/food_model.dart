@@ -65,6 +65,7 @@ class FoodModel {
         "protein": protein,
         "fat": fat,
         "fiber": fiber,
+        "loggedAt": loggedAt.toUtc().toIso8601String(),
         if (image.isNotEmpty) "image": image,
       };
 }

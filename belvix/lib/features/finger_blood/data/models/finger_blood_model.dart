@@ -36,5 +36,6 @@ class FingerBloodModel {
   Map<String, dynamic> toCreateJson() => {
         "glucoseValue": glucoseValue,
         "notes": notes,
+        "loggedAt": loggedAt.toUtc().toIso8601String(),
       };
 }
