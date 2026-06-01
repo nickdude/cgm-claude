@@ -144,31 +144,33 @@ class ProfileScreen extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.12),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.18),
-                            ),
+                        // Avatar drawn with Material + ClipOval/Image — a
+                        // CircleAvatar (BoxDecoration/backgroundImage) renders
+                        // transparent on some renderers.
+                        Material(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          shape: const CircleBorder(
+                            side: BorderSide(color: Color(0x2EFFFFFF)),
                           ),
-                          child: CircleAvatar(
-                            radius: 34,
-                            backgroundColor: Colors.white,
-                            backgroundImage: profileImageUrl.isNotEmpty
-                                ? NetworkImage(profileImageUrl)
-                                : null,
-                            child: profileImageUrl.isEmpty
-                                ? Text(
-                                    _initialsFor(fullName),
-                                    style: const TextStyle(
-                                      color: AppColors.textSecondary,
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  )
-                                : null,
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: Material(
+                              color: Colors.white,
+                              shape: const CircleBorder(),
+                              clipBehavior: Clip.antiAlias,
+                              child: SizedBox(
+                                width: 68,
+                                height: 68,
+                                child: profileImageUrl.isNotEmpty
+                                    ? Image.network(
+                                        profileImageUrl,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) =>
+                                            _initialsAvatar(fullName),
+                                      )
+                                    : _initialsAvatar(fullName),
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 14),
@@ -338,5 +340,19 @@ class ProfileScreen extends StatelessWidget {
     String firstLetter(String value) => value.isNotEmpty ? value[0] : 'U';
     if (parts.length == 1) return firstLetter(parts.first).toUpperCase();
     return '${firstLetter(parts.first)}${firstLetter(parts.last)}'.toUpperCase();
+  }
+
+  /// Initials shown on the white avatar circle when there's no photo.
+  static Widget _initialsAvatar(String name) {
+    return Center(
+      child: Text(
+        _initialsFor(name),
+        style: const TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 22,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
   }
 }

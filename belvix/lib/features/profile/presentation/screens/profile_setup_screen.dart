@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -38,6 +38,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   static const Set<String> allowedExtensions = {'jpg', 'jpeg', 'png', 'webp'};
 
   XFile? selectedImage;
+
+  /// Bytes of the freshly picked image — used for the preview (Image.memory)
+  /// and the upload, so it works on web as well as mobile.
+  Uint8List? _pickedBytes;
 
   String profileImagePath = "";
 
@@ -136,9 +140,11 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       return;
     }
 
-    final bytes = await File(picked.path).length();
+    // readAsBytes works on web and mobile; File(path) (dart:io) throws on
+    // web and silently dropped the pick.
+    final bytes = await picked.readAsBytes();
 
-    if (bytes > maxImageSizeInBytes) {
+    if (bytes.length > maxImageSizeInBytes) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -150,6 +156,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
     setState(() {
       selectedImage = picked;
+      _pickedBytes = bytes;
     });
   }
 
@@ -221,8 +228,11 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       var latestProfileImagePath = profileImagePath;
 
       if (selectedImage != null) {
+        // Bytes work on web as well as mobile (reuse the preview bytes).
+        final bytes = _pickedBytes ?? await selectedImage!.readAsBytes();
         latestProfileImagePath = await profileRepository.uploadProfileImage(
-          filePath: selectedImage!.path,
+          bytes: bytes,
+          filename: selectedImage!.name,
         );
       }
 
@@ -284,8 +294,6 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final localImagePath = selectedImage?.path;
-
     final imageUrl = _resolveImageUrl(profileImagePath);
 
     return Scaffold(
@@ -388,8 +396,11 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                               ),
                             ),
                             child: ClipOval(
-                              child: localImagePath != null
-                                  ? Image.file(File(localImagePath), fit: BoxFit.cover)
+                              child: _pickedBytes != null
+                                  ? Image.memory(
+                                      _pickedBytes!,
+                                      fit: BoxFit.cover,
+                                    )
                                   : imageUrl.isNotEmpty
                                   ? Image.network(
                                       imageUrl,

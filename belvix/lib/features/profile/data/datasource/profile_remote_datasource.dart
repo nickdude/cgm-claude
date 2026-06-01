@@ -7,24 +7,26 @@ import '../../../../core/storage/storage_service.dart';
 class ProfileRemoteDatasource {
   final Dio dio = DioClient.dio;
 
-  Future<String> uploadProfileImage({required String filePath}) async {
+  Future<String> uploadProfileImage({
+    required List<int> bytes,
+    required String filename,
+  }) async {
     final token = await StorageService.getToken();
 
+    // fromBytes works on web and mobile; MultipartFile.fromFile (dart:io)
+    // throws on web.
     final formData = FormData.fromMap({
-      "file": await MultipartFile.fromFile(
-        filePath,
-        filename: filePath.split('/').last,
-      ),
+      "file": MultipartFile.fromBytes(bytes, filename: filename),
     });
 
     final response = await dio.post(
       "/upload/single",
       data: formData,
+      // Don't set Content-Type manually — dio adds the correct
+      // `multipart/form-data; boundary=...` for FormData. A manual value
+      // without a boundary breaks server-side multipart parsing.
       options: Options(
-        headers: {
-          "Authorization": "Bearer $token",
-          "Content-Type": "multipart/form-data",
-        },
+        headers: {"Authorization": "Bearer $token"},
       ),
     );
 

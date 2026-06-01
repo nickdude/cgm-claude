@@ -8,8 +8,14 @@ class ProfileRepositoryImpl implements ProfileRepository {
   final ProfileRemoteDatasource remoteDatasource = ProfileRemoteDatasource();
 
   @override
-  Future<String> uploadProfileImage({required String filePath}) async {
-    return remoteDatasource.uploadProfileImage(filePath: filePath);
+  Future<String> uploadProfileImage({
+    required List<int> bytes,
+    required String filename,
+  }) async {
+    return remoteDatasource.uploadProfileImage(
+      bytes: bytes,
+      filename: filename,
+    );
   }
 
   @override
