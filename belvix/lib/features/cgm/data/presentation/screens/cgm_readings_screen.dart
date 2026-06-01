@@ -1,7 +1,12 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../../app/constants/app_assets.dart';
 import '../../../../../core/widgets/app_surface.dart';
+import '../../../dashboard/presentation/widgets/dashboard_theme.dart';
 import '../../models/cgm_reading_model.dart';
 import '../../repository/cgm_reading_repository_impl.dart';
 
@@ -37,48 +42,75 @@ class _CgmReadingsScreenState extends State<CgmReadingsScreen> {
     await _readingsFuture;
   }
 
-  Color _trendColor(String trend) {
-    switch (trend.toLowerCase()) {
-      case 'rising':
-      case 'rising fast':
-        return const Color(0xFFEA580C);
-      case 'falling':
-      case 'falling fast':
-        return const Color(0xFFDC2626);
-      default:
-        return const Color(0xFF2563EB);
-    }
-  }
+  /// Green when the reading sits in 70–180 mg/dL, alert colour otherwise.
+  Color _statusColor(double v) =>
+      (v >= 70 && v <= 180) ? DashboardTheme.accent : DashboardTheme.danger;
 
-  IconData _trendIcon(String trend) {
+  /// arrow.svg points up-right (↗). Rotate it to reflect the trend, mapping
+  /// the SDK trend levels to a 5-direction fan (↑ ↗ → ↘ ↓).
+  double _trendAngle(String trend) {
     switch (trend.toLowerCase()) {
-      case 'rising':
       case 'rising fast':
-        return Icons.trending_up;
+        return -math.pi / 4; // ↑
+      case 'rising':
+        return 0; // ↗
       case 'falling':
+        return math.pi / 2; // ↘
       case 'falling fast':
-        return Icons.trending_down;
+        return 3 * math.pi / 4; // ↓
       default:
-        return Icons.trending_flat;
+        return math.pi / 4; // → stable
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6F8),
+      backgroundColor: DashboardTheme.screenBg,
       appBar: AppBar(
-        title: const Text('Data'),
-        backgroundColor: const Color(0xFFF5F6F8),
         elevation: 0,
+        scrolledUnderElevation: 0,
+        backgroundColor: DashboardTheme.screenBg,
+        centerTitle: false,
+        titleSpacing: 16,
+        toolbarHeight: 66,
+        title: const Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Glucose History',
+              style: TextStyle(
+                fontSize: 19,
+                fontWeight: FontWeight.w800,
+                color: DashboardTheme.textPrimary,
+                height: 1.1,
+              ),
+            ),
+            SizedBox(height: 2),
+            Text(
+              'Every reading, timestamped & trended',
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
+                color: DashboardTheme.textSecondary,
+              ),
+            ),
+          ],
+        ),
       ),
       body: RefreshIndicator(
+        color: DashboardTheme.accent,
+        backgroundColor: DashboardTheme.surface,
         onRefresh: _refresh,
         child: FutureBuilder<List<CgmReadingModel>>(
           future: _readingsFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+              return const Center(
+                child: CircularProgressIndicator(color: DashboardTheme.accent),
+              );
             }
 
             final readings = snapshot.data ?? const <CgmReadingModel>[];
@@ -91,19 +123,24 @@ class _CgmReadingsScreenState extends State<CgmReadingsScreen> {
                   Icon(
                     Icons.insights_outlined,
                     size: 72,
-                    color: Color(0xFFCBD5E1),
+                    color: DashboardTheme.textMuted,
                   ),
                   SizedBox(height: 16),
                   Text(
                     'No CGM readings yet',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: DashboardTheme.textPrimary,
+                    ),
                   ),
                   SizedBox(height: 8),
                   Text(
-                    'Your glucose readings will appear here with timestamp and trend.',
+                    'Your glucose readings will appear here with timestamp '
+                    'and trend.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Color(0xFF64748B)),
+                    style: TextStyle(color: DashboardTheme.textSecondary),
                   ),
                 ],
               );
@@ -111,71 +148,83 @@ class _CgmReadingsScreenState extends State<CgmReadingsScreen> {
 
             return ListView.builder(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               itemCount: readings.length,
               itemBuilder: (context, index) {
                 final reading = readings[index];
-                final trendColor = _trendColor(reading.trend);
+                final color = _statusColor(reading.glucoseValue);
                 final formatter = DateFormat('MMM d, yyyy • h:mm a');
 
                 return Padding(
-                  padding: const EdgeInsets.only(bottom: 14),
+                  padding: const EdgeInsets.only(bottom: 12),
                   child: AppSurface(
                     padding: const EdgeInsets.all(16),
-                    radius: 20,
+                    radius: DashboardTheme.radiusLg,
                     child: Row(
                       children: [
+                        // Trend arrow badge — coloured by glucose range,
+                        // pointed by the reading's trend.
                         Container(
-                          width: 64,
-                          height: 64,
+                          width: 56,
+                          height: 56,
                           decoration: BoxDecoration(
-                            color: trendColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(18),
+                            color: color.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                          child: Icon(
-                            _trendIcon(reading.trend),
-                            color: trendColor,
-                            size: 30,
+                          alignment: Alignment.center,
+                          child: Transform.rotate(
+                            angle: _trendAngle(reading.trend),
+                            child: SvgPicture.asset(
+                              AppAssets.trendArrow,
+                              width: 22,
+                              height: 22,
+                              colorFilter: ColorFilter.mode(
+                                color,
+                                BlendMode.srcIn,
+                              ),
+                            ),
                           ),
                         ),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 14),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '${reading.glucoseValue.toStringAsFixed(0)} mg/dL',
+                                '${reading.glucoseValue.toStringAsFixed(0)} '
+                                'mg/dL',
                                 style: const TextStyle(
                                   fontSize: 18,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF0F172A),
+                                  fontWeight: FontWeight.w800,
+                                  color: DashboardTheme.textPrimary,
                                 ),
                               ),
-                              const SizedBox(height: 6),
+                              const SizedBox(height: 4),
                               Text(
                                 formatter.format(reading.readingAt),
                                 style: const TextStyle(
                                   fontSize: 13,
-                                  color: Color(0xFF64748B),
+                                  color: DashboardTheme.textSecondary,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ],
                           ),
                         ),
+                        const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
-                            vertical: 8,
+                            vertical: 7,
                           ),
                           decoration: BoxDecoration(
-                            color: trendColor.withValues(alpha: 0.12),
+                            color: color.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(999),
                           ),
                           child: Text(
                             reading.trend,
                             style: TextStyle(
-                              color: trendColor,
+                              color: color,
                               fontWeight: FontWeight.w700,
                               fontSize: 12,
                             ),
