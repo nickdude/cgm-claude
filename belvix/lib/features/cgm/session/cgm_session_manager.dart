@@ -815,6 +815,18 @@ class CgmSessionManager {
 
     _activeDeviceCache = updated;
 
+    // Warm-up window: the Eaglenos sensor preheats for 60 minutes after
+    // activation. `isPreheating` is the sensor's own flag; `warmupEndsAt`
+    // gives an exact countdown target derived from the activation time.
+    final warmupEndsAt = activatedSec > 0
+        ? activatedAt.add(
+            const Duration(minutes: 60),
+          )
+        : null;
+
+    final isPreheating =
+        event["isPreheating"] == true;
+
     if (isExpired) {
       _emit(
         _state.copyWith(
@@ -822,10 +834,17 @@ class CgmSessionManager {
               .expired,
           message:
               "Sensor expired. Please replace it.",
+          warmupEndsAt: warmupEndsAt,
+          isPreheating: false,
         ),
       );
     } else {
-      _emit(_state);
+      _emit(
+        _state.copyWith(
+          warmupEndsAt: warmupEndsAt,
+          isPreheating: isPreheating,
+        ),
+      );
     }
   }
 

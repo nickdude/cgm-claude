@@ -22,6 +22,7 @@ import '../widgets/glucose_chart_card.dart';
 import '../widgets/glucose_trend_chart.dart';
 import '../widgets/glucose_gauge.dart';
 import '../widgets/metabolic_score_card.dart';
+import '../widgets/sensor_warmup_nudge.dart';
 import '../widgets/sync_progress_card.dart';
 import '../widgets/week_score_strip.dart';
 import 'gmi_screen.dart';
@@ -138,39 +139,79 @@ class _CGMDashboardScreenState extends State<CGMDashboardScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: RefreshIndicator(
-        color: DashboardTheme.accent,
-        backgroundColor: DashboardTheme.surface,
-        onRefresh: () async {
-          await Future.wait([
-            context.read<CGMProvider>().fetchDevices(),
-            context.read<CGMDashboardProvider>().refresh(),
-          ]);
-        },
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          // Extra bottom padding so the last card clears the floating
-          // bottom navigation bar at the end of the scroll.
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
-          children: [
-            _WeekStripSection(
-              selectedDay: _selectedDay,
-              onDaySelected: _onDaySelected,
+      body: Stack(
+        children: [
+          RefreshIndicator(
+            color: DashboardTheme.accent,
+            backgroundColor: DashboardTheme.surface,
+            onRefresh: () async {
+              await Future.wait([
+                context.read<CGMProvider>().fetchDevices(),
+                context.read<CGMDashboardProvider>().refresh(),
+              ]);
+            },
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              // Extra bottom padding so the last card clears the floating
+              // bottom navigation bar at the end of the scroll.
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
+              children: [
+                _WeekStripSection(
+                  selectedDay: _selectedDay,
+                  onDaySelected: _onDaySelected,
+                ),
+                const SizedBox(height: 16),
+                _GaugeSection(selectedDay: _selectedDay),
+                const SizedBox(height: 16),
+                _ScoreSection(selectedDay: _selectedDay),
+                const SizedBox(height: 16),
+                _ChartSection(selectedDay: _selectedDay),
+                const SizedBox(height: 16),
+                _MetricsSection(selectedDay: _selectedDay),
+                const SizedBox(height: 24),
+                const _TimelineSection(),
+                const SizedBox(height: 20),
+                const _TotalMacrosSection(),
+              ],
             ),
-            const SizedBox(height: 16),
-            _GaugeSection(selectedDay: _selectedDay),
-            const SizedBox(height: 16),
-            _ScoreSection(selectedDay: _selectedDay),
-            const SizedBox(height: 16),
-            _ChartSection(selectedDay: _selectedDay),
-            const SizedBox(height: 16),
-            _MetricsSection(selectedDay: _selectedDay),
-            const SizedBox(height: 24),
-            const _TimelineSection(),
-            const SizedBox(height: 20),
-            const _TotalMacrosSection(),
-          ],
-        ),
+          ),
+
+          // Warm-up nudge: slides up from the bottom and stays only while
+          // the sensor is preheating (live countdown from activation time).
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Consumer<CGMProvider>(
+              builder: (context, cgm, _) {
+                final ends = cgm.warmupEndsAt;
+                final show = cgm.isWarmingUp && ends != null;
+
+                return AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  switchInCurve: Curves.easeOut,
+                  switchOutCurve: Curves.easeIn,
+                  transitionBuilder: (child, anim) => SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, 1),
+                      end: Offset.zero,
+                    ).animate(anim),
+                    child: child,
+                  ),
+                  child: show
+                      ? SensorWarmupNudge(
+                          key: const ValueKey('warmup'),
+                          warmupEndsAt: ends,
+                          onFinished: () {
+                            if (mounted) setState(() {});
+                          },
+                        )
+                      : const SizedBox.shrink(key: ValueKey('none')),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

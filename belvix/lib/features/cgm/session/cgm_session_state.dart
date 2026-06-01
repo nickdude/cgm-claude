@@ -68,6 +68,13 @@ class CgmSessionState {
   /// True once a saved session has been loaded from storage.
   final bool restoredFromStorage;
 
+  /// When the sensor finishes its post-activation warm-up; null if unknown.
+  final DateTime? warmupEndsAt;
+
+  /// True while the sensor is still in its warm-up window (no valid
+  /// readings yet) — drives the warm-up nudge.
+  final bool isPreheating;
+
   const CgmSessionState({
     required this.status,
     this.sn,
@@ -77,6 +84,8 @@ class CgmSessionState {
     this.message,
     this.lastBindStep,
     this.restoredFromStorage = false,
+    this.warmupEndsAt,
+    this.isPreheating = false,
   });
 
   const CgmSessionState.initial()
@@ -89,7 +98,9 @@ class CgmSessionState {
         syncProgress = 0,
         message = null,
         lastBindStep = null,
-        restoredFromStorage = false;
+        restoredFromStorage = false,
+        warmupEndsAt = null,
+        isPreheating = false;
 
   CgmSessionState copyWith({
     CGMConnectionStatus? status,
@@ -101,6 +112,8 @@ class CgmSessionState {
     Object? lastBindStep =
         _sentinel,
     bool? restoredFromStorage,
+    Object? warmupEndsAt = _sentinel,
+    bool? isPreheating,
   }) {
     return CgmSessionState(
       status: status ?? this.status,
@@ -124,6 +137,14 @@ class CgmSessionState {
       restoredFromStorage:
           restoredFromStorage ??
               this.restoredFromStorage,
+      warmupEndsAt: identical(
+        warmupEndsAt,
+        _sentinel,
+      )
+          ? this.warmupEndsAt
+          : warmupEndsAt as DateTime?,
+      isPreheating: isPreheating ??
+          this.isPreheating,
     );
   }
 }

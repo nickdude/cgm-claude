@@ -54,6 +54,24 @@ class CGMProvider extends ChangeNotifier {
   String? get lastBindStep =>
       _state.lastBindStep;
 
+  /// Sensor is still warming up (no valid readings yet).
+  bool get isPreheating =>
+      _state.isPreheating;
+
+  /// Exact moment the warm-up completes; null when unknown.
+  DateTime? get warmupEndsAt =>
+      _state.warmupEndsAt;
+
+  /// True while the warm-up nudge should be shown — the sensor is
+  /// preheating and the 60-minute window hasn't elapsed.
+  bool get isWarmingUp {
+    final ends = _state.warmupEndsAt;
+    if (!_state.isPreheating || ends == null) {
+      return false;
+    }
+    return DateTime.now().isBefore(ends);
+  }
+
   /// Always returns the currently known device (paired or attempting).
   CGMDeviceModel? get activeDevice {
     final cached =
