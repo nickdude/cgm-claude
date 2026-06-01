@@ -15,5 +15,12 @@ class AppAssets {
 
   // Sign in
   static const signInBackground =
-      "assets/images/signin/signin.png";
+      "assets/images/signin/sigin.png";
+
+  // Social auth icons
+  static const googleIcon =
+      "assets/icons/google.svg";
+
+  static const facebookIcon =
+      "assets/icons/fb.svg";
 }

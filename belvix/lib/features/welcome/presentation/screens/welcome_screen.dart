@@ -160,13 +160,16 @@ class _SoftLegibilityShade
             end: Alignment
                 .bottomCenter,
             stops: const [
+              0.40,
               0.72,
               1.0,
             ],
             colors: [
               Colors.transparent,
               Colors.black
-                  .withOpacity(0.30),
+                  .withOpacity(0.55),
+              Colors.black
+                  .withOpacity(0.95),
             ],
           ),
         ),

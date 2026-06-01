@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../../../app/constants/app_assets.dart';
 import '../../../../app/theme/app_colors.dart';
 
 class SocialButton extends StatelessWidget {
   const SocialButton({
     super.key,
     required this.label,
-    required this.icon,
+    required this.iconAsset,
     required this.onTap,
     required this.backgroundColor,
     required this.borderColor,
@@ -15,7 +17,7 @@ class SocialButton extends StatelessWidget {
   });
 
   final String label;
-  final IconData icon;
+  final String iconAsset;
   final VoidCallback onTap;
   final Color backgroundColor;
   final Color borderColor;
@@ -64,7 +66,12 @@ class SocialButton extends StatelessWidget {
                             color: iconColor.withValues(alpha: 0.1),
                             shape: BoxShape.circle,
                           ),
-                          child: Icon(icon, color: iconColor, size: 18),
+                          padding: const EdgeInsets.all(5),
+                          child: SvgPicture.asset(
+                            iconAsset,
+                            width: 18,
+                            height: 18,
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Flexible(
@@ -171,7 +178,7 @@ class SocialAuthButtons extends StatelessWidget {
                   children: [
                     SocialButton(
                       label: 'Continue with Google',
-                      icon: Icons.g_mobiledata_rounded,
+                      iconAsset: AppAssets.googleIcon,
                       onTap: onGoogleTap,
                       backgroundColor: const Color(0xFFFBFCFE),
                       borderColor: const Color(0xFFE7EDF5),
@@ -181,7 +188,7 @@ class SocialAuthButtons extends StatelessWidget {
                     const SizedBox(height: 12),
                     SocialButton(
                       label: 'Continue with Facebook',
-                      icon: Icons.facebook_rounded,
+                      iconAsset: AppAssets.facebookIcon,
                       onTap: onFacebookTap,
                       backgroundColor: const Color(0xFFFBFCFE),
                       borderColor: const Color(0xFFE7EDF5),
@@ -197,7 +204,7 @@ class SocialAuthButtons extends StatelessWidget {
                   Expanded(
                     child: SocialButton(
                       label: 'Google',
-                      icon: Icons.g_mobiledata_rounded,
+                      iconAsset: AppAssets.googleIcon,
                       onTap: onGoogleTap,
                       backgroundColor: const Color(0xFFFBFCFE),
                       borderColor: const Color(0xFFE7EDF5),
@@ -209,7 +216,7 @@ class SocialAuthButtons extends StatelessWidget {
                   Expanded(
                     child: SocialButton(
                       label: 'Facebook',
-                      icon: Icons.facebook_rounded,
+                      iconAsset: AppAssets.facebookIcon,
                       onTap: onFacebookTap,
                       backgroundColor: const Color(0xFFFBFCFE),
                       borderColor: const Color(0xFFE7EDF5),

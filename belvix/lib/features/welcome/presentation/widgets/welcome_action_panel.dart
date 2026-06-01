@@ -34,7 +34,14 @@ class WelcomeActionPanel
       child: Column(
         mainAxisSize:
             MainAxisSize.min,
+        crossAxisAlignment:
+            CrossAxisAlignment
+                .stretch,
         children: [
+          const _HeroTitle(),
+          const SizedBox(
+            height: 22,
+          ),
           _PrimaryCta(
             label:
                 "Sign Up / Log In",
@@ -50,6 +57,28 @@ class WelcomeActionPanel
                 privacyRecognizer,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Bold hero headline pinned above the CTA.
+class _HeroTitle
+    extends StatelessWidget {
+  const _HeroTitle();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Text(
+      "Decode\nMetabolic Heath",
+      textAlign: TextAlign.center,
+      style: TextStyle(
+        color: Colors.white,
+        fontSize: 30,
+        fontWeight:
+            FontWeight.w800,
+        height: 1.12,
+        letterSpacing: 0.2,
       ),
     );
   }
@@ -149,7 +178,7 @@ class _LegalCopy
         children: [
           const TextSpan(
             text:
-                "By continuing, you agree to YOURSDB's ",
+                "By continuing, you agree to YCGMS365 app's ",
           ),
           TextSpan(
             text:

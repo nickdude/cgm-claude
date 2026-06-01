@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 import '../../../../app/constants/app_assets.dart';
@@ -41,11 +43,11 @@ class AuthScaffold
     final size =
         MediaQuery.of(context).size;
 
-    // 40% of screen height for the hero photo on standard devices,
-    // clamped so small phones still leave room for the form.
+    // Tall hero photo that dissolves smoothly into the content; clamped
+    // so small phones still leave room for the scrollable form.
     final heroHeight = (size.height *
-            0.4)
-        .clamp(220.0, 360.0);
+            0.46)
+        .clamp(320.0, 450.0);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -61,11 +63,11 @@ class AuthScaffold
             asset: heroImage ??
                 AppAssets
                     .signInBackground,
+            title: title,
           ),
           Expanded(
             child:
                 _ContentPanel(
-              title: title,
               subtitle: subtitle,
               child: child,
             ),
@@ -84,10 +86,13 @@ class _HeroImage
 
   final String asset;
 
+  final String title;
+
   const _HeroImage({
     required this.height,
     required this.showBackButton,
     required this.asset,
+    required this.title,
   });
 
   @override
@@ -104,7 +109,59 @@ class _HeroImage
             alignment:
                 Alignment.center,
           ),
-          // Subtle bottom fade into the white panel.
+          // Progressive frosted blur: a blurred copy of the photo whose
+          // visibility ramps in gradually toward the bottom (no hard
+          // edge), so the lower part of the image softens smoothly.
+          IgnorePointer(
+            child: ShaderMask(
+              shaderCallback:
+                  (rect) =>
+                      const LinearGradient(
+                begin: Alignment
+                    .topCenter,
+                end: Alignment
+                    .bottomCenter,
+                stops: [
+                  0.32,
+                  0.55,
+                  0.78,
+                  1.0,
+                ],
+                colors: [
+                  Colors
+                      .transparent,
+                  Colors.white10,
+                  Colors.white,
+                  Colors.white,
+                ],
+              ).createShader(
+                        rect,
+                      ),
+              blendMode:
+                  BlendMode.dstIn,
+              child:
+                  ImageFiltered(
+                imageFilter:
+                    ImageFilter
+                        .blur(
+                  sigmaX: 22,
+                  sigmaY: 22,
+                ),
+                child:
+                    Image.asset(
+                  asset,
+                  fit: BoxFit
+                      .cover,
+                  alignment:
+                      Alignment
+                          .center,
+                ),
+              ),
+            ),
+          ),
+          // Smooth white wash that reaches SOLID white at the very bottom
+          // edge, so the photo melts seamlessly into the white content
+          // below — no visible seam or line.
           IgnorePointer(
             child: DecoratedBox(
               decoration:
@@ -116,18 +173,44 @@ class _HeroImage
                   end: Alignment
                       .bottomCenter,
                   stops: const [
-                    0.75,
+                    0.42,
+                    0.66,
+                    0.84,
                     1.0,
                   ],
                   colors: [
                     Colors
                         .transparent,
                     Colors.white
-                        .withOpacity(
-                      0.9,
+                        .withValues(
+                      alpha: 0.18,
                     ),
+                    Colors.white
+                        .withValues(
+                      alpha: 0.92,
+                    ),
+                    Colors.white,
                   ],
                 ),
+              ),
+            ),
+          ),
+          // Title sitting on the dissolved (white) bottom of the hero.
+          Positioned(
+            left: 24,
+            right: 24,
+            bottom: 20,
+            child: Text(
+              title,
+              textAlign:
+                  TextAlign.center,
+              style: const TextStyle(
+                fontSize: 28,
+                fontWeight:
+                    FontWeight.w700,
+                color: AppColors
+                    .textPrimary,
+                height: 1.2,
               ),
             ),
           ),
@@ -187,38 +270,22 @@ class _BackButton
 
 class _ContentPanel
     extends StatelessWidget {
-  final String title;
-
   final String subtitle;
 
   final Widget child;
 
   const _ContentPanel({
-    required this.title,
     required this.subtitle,
     required this.child,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Plain white surface that butts straight up against the hero's
+    // white-dissolved bottom edge — same colour, so there is no seam.
     return Container(
       width: double.infinity,
-      // Negative top margin lifts the panel slightly into the hero so
-      // the rounded corners overlap the photo edge — the figma look.
-      transform:
-          Matrix4.translationValues(
-        0,
-        -24,
-        0,
-      ),
-      decoration:
-          const BoxDecoration(
-        color: Colors.white,
-        borderRadius:
-            BorderRadius.vertical(
-          top: Radius.circular(28),
-        ),
-      ),
+      color: Colors.white,
       child: SafeArea(
         top: false,
         child:
@@ -227,7 +294,7 @@ class _ContentPanel
               const EdgeInsets
                   .fromLTRB(
             24,
-            28,
+            6,
             24,
             24,
           ),
@@ -236,22 +303,6 @@ class _ContentPanel
                 CrossAxisAlignment
                     .start,
             children: [
-              Text(
-                title,
-                style:
-                    const TextStyle(
-                  fontSize: 28,
-                  fontWeight:
-                      FontWeight
-                          .w700,
-                  color: AppColors
-                      .textPrimary,
-                  height: 1.2,
-                ),
-              ),
-              const SizedBox(
-                height: 6,
-              ),
               Text(
                 subtitle,
                 style:
