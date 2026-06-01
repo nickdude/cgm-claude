@@ -111,6 +111,11 @@ class CGMConnectIntroScreen
               PrimaryButton(
                 title:
                     "Start Connecting",
+                backgroundColor:
+                    AppColors
+                        .textPrimary,
+                foregroundColor:
+                    Colors.white,
                 onTap: () {
                   Navigator.push(
                     context,
@@ -129,6 +134,12 @@ class CGMConnectIntroScreen
               TextButton(
                 onPressed: () =>
                     _skip(context),
+                style: TextButton
+                    .styleFrom(
+                  foregroundColor:
+                      AppColors
+                          .textPrimary,
+                ),
                 child: const Text(
                   "Skip for now",
                 ),

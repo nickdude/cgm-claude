@@ -326,11 +326,11 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF0F172A), Color(0xFF1D4ED8)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+                  // Solid dark fill instead of a gradient: the gradient
+                  // was rendering transparent on device (same class of
+                  // bug as the nav "+"), leaving the white text invisible
+                  // on the light page. A solid colour paints reliably.
+                  color: const Color(0xFF0F172A),
                   borderRadius: BorderRadius.circular(28),
                   boxShadow: const [
                     BoxShadow(
@@ -410,9 +410,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Premium profile setup',
+                            'Profile setup',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: Colors.black,
                               fontSize: 20,
                               fontWeight: FontWeight.w800,
                             ),
@@ -421,7 +421,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                           Text(
                             'Keep your profile photo and details up to date.',
                             style: TextStyle(
-                              color: Colors.white70,
+                              color: Colors.black54,
                               fontSize: 13,
                               height: 1.35,
                             ),

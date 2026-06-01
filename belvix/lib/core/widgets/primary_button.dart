@@ -8,11 +8,19 @@ class PrimaryButton
 
   final bool isLoading;
 
+  /// Optional overrides; when null the widget falls back to the theme
+  /// (so existing usages are unchanged).
+  final Color? backgroundColor;
+
+  final Color? foregroundColor;
+
   const PrimaryButton({
     super.key,
     required this.title,
     required this.onTap,
     this.isLoading = false,
+    this.backgroundColor,
+    this.foregroundColor,
   });
 
   @override
@@ -20,6 +28,16 @@ class PrimaryButton
     return ElevatedButton(
       onPressed:
           isLoading ? null : onTap,
+      style:
+          (backgroundColor != null ||
+              foregroundColor != null)
+          ? ElevatedButton.styleFrom(
+              backgroundColor:
+                  backgroundColor,
+              foregroundColor:
+                  foregroundColor,
+            )
+          : null,
 
       child: isLoading
           ? const SizedBox(

@@ -202,116 +202,119 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final progress = (currentStep + 1) / totalSteps;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
+      // Full-height layout: header pinned at the top, content scrolls in
+      // the middle, button pinned near the bottom. Equal top/bottom space
+      // keeps every question's screen consistent regardless of content.
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 24,
+          ),
+          child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 480),
-              child: Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: AppColors.border),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 220),
-                  child: Column(
-                    key: ValueKey(currentStep),
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          IconButton(
-                            onPressed: _goBack,
-                            icon: const Icon(Icons.arrow_back_rounded),
-                            color: AppColors.textPrimary,
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "Question ${currentStep + 1} of $totalSteps",
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(999),
-                                  child: LinearProgressIndicator(
-                                    value: progress,
-                                    minHeight: 8,
-                                    backgroundColor: const Color(0xFFE8EEF7),
-                                    valueColor:
-                                        const AlwaysStoppedAnimation<Color>(
-                                          AppColors.primary,
-                                        ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: provider.isLoading ? null : _skipStep,
-                            style: TextButton.styleFrom(
-                              foregroundColor: AppColors.textSecondary,
-                              textStyle: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
+                      IconButton(
+                        onPressed: _goBack,
+                        icon: const Icon(Icons.arrow_back_rounded),
+                        color: AppColors.textPrimary,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Question ${currentStep + 1} of $totalSteps",
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary,
                               ),
                             ),
-                            child: const Text('Skip'),
+                            const SizedBox(height: 8),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(999),
+                              child: LinearProgressIndicator(
+                                value: progress,
+                                minHeight: 8,
+                                backgroundColor: const Color(0xFFE8EEF7),
+                                valueColor:
+                                    const AlwaysStoppedAnimation<Color>(
+                                      AppColors.textPrimary,
+                                    ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: provider.isLoading ? null : _skipStep,
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.textSecondary,
+                          textStyle: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 28),
-                      Text(
-                        _stepTitle(),
-                        style: const TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
-                          height: 1.2,
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        _stepSubtitle(),
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.textSecondary,
-                          height: 1.45,
-                        ),
-                      ),
-                      const SizedBox(height: 28),
-                      _buildStepContent(),
-                      const SizedBox(height: 28),
-                      AuthPrimaryButton(
-                        label: currentStep == totalSteps - 1
-                            ? "Finish"
-                            : "Next",
-                        isLoading: provider.isLoading,
-                        onTap: _goNext,
+                        child: const Text('Skip'),
                       ),
                     ],
                   ),
-                ),
+                  const SizedBox(height: 28),
+                  Expanded(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      child: SingleChildScrollView(
+                        key: ValueKey(currentStep),
+                        physics: const BouncingScrollPhysics(),
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _stepTitle(),
+                              style: const TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary,
+                                height: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              _stepSubtitle(),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.textSecondary,
+                                height: 1.45,
+                              ),
+                            ),
+                            const SizedBox(height: 28),
+                            _buildStepContent(),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  AuthPrimaryButton(
+                    label: currentStep == totalSteps - 1
+                        ? "Finish"
+                        : "Next",
+                    isLoading: provider.isLoading,
+                    onTap: _goNext,
+                  ),
+                ],
               ),
             ),
           ),
@@ -506,10 +509,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFEAF2FF) : const Color(0xFFF8FAFC),
+          color: isSelected ? const Color(0xFFEDEEF1) : const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.border,
+            color: isSelected ? AppColors.textPrimary : AppColors.border,
             width: 1.2,
           ),
         ),
@@ -518,16 +521,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             Expanded(
               child: Text(
                 title,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                  color: AppColors.textPrimary,
                 ),
               ),
             ),
             Icon(
               isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-              color: isSelected ? AppColors.primary : AppColors.textSecondary,
+              color: isSelected
+                  ? AppColors.textPrimary
+                  : AppColors.textSecondary,
               size: 20,
             ),
           ],
@@ -549,10 +554,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFEAF2FF) : const Color(0xFFF8FAFC),
+          color: isSelected ? const Color(0xFFEDEEF1) : const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.border,
+            color: isSelected ? AppColors.textPrimary : AppColors.border,
             width: 1.2,
           ),
         ),
@@ -561,16 +566,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             Expanded(
               child: Text(
                 title,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                  color: AppColors.textPrimary,
                 ),
               ),
             ),
             Icon(
               isSelected ? Icons.check_circle : Icons.circle_outlined,
-              color: isSelected ? AppColors.primary : AppColors.textSecondary,
+              color: isSelected
+                  ? AppColors.textPrimary
+                  : AppColors.textSecondary,
             ),
           ],
         ),
