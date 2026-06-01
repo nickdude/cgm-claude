@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class DiscoverScreen extends StatelessWidget {
   const DiscoverScreen({super.key});
@@ -30,27 +31,55 @@ class DiscoverScreen extends StatelessWidget {
 class DiscoverTabContent extends StatelessWidget {
   const DiscoverTabContent({super.key});
 
+  // Content sourced from belvixdiagnosticindia.com — each card opens the
+  // original article on the website.
   static const List<DiscoverCardData> _cards = [
     DiscoverCardData(
       imagePath: 'assets/images/discover/discover-1.png',
       title: 'CGMS365',
-      dateTime: '2025-12-30  21:42:41',
+      url: 'https://belvixdiagnosticindia.com/cgms365',
       description:
-          'Learn how CGMS365 helps you monitor glucose trends in real time and build healthier daily routines.',
+          'CGMS365 is an advanced continuous glucose monitoring system that '
+          'delivers accurate, real-time glucose insights. With a 15-day, '
+          'calibration-free sensor and a compact all-in-one design, it pairs '
+          'over Bluetooth with iOS, Android and HarmonyOS to make everyday '
+          'diabetes management simpler and smarter.',
     ),
     DiscoverCardData(
       imagePath: 'assets/images/discover/discover-2.jpg',
-      title: 'Continuous Glucose Monitoring System',
-      dateTime: '2025-12-30  21:42:41',
+      title: 'CGM and Modern Diabetes Care',
+      url: 'https://belvixdiagnosticindia.com/f/cgm-and-modern-diabetes-care',
       description:
-          'Explore how continuous monitoring gives actionable insights around meals, activity, and insulin decisions.',
+          'Continuous glucose monitoring is at the heart of modern diabetes '
+          'care. Instead of occasional finger-prick readings, CGM reveals '
+          'real-time glucose trends that help guide everyday decisions around '
+          'food, activity and medication — for tighter control with less '
+          'guesswork.',
     ),
     DiscoverCardData(
       imagePath: 'assets/images/discover/discover-3.jpg',
-      title: 'Download App',
-      dateTime: '2025-12-30  21:42:41',
+      title: 'Preventive Healthcare Starts with Regular Health Monitoring',
+      url:
+          'https://belvixdiagnosticindia.com/f/'
+          'preventive-healthcare-starts-with-regular-health-monitoring',
       description:
-          'Install the companion app and connect your device to access alerts, logs, and personalized glucose reports.',
+          'Prevention begins with awareness. Regular health monitoring — of '
+          'glucose, blood pressure and other key markers — helps you catch '
+          'changes early and stay ahead of chronic conditions, putting you in '
+          'control of your long-term health.',
+    ),
+    DiscoverCardData(
+      // Reusing an existing image for now.
+      imagePath: 'assets/images/discover/discover-1.png',
+      title: 'How Continuous Glucose Monitoring is Changing Diabetes Care',
+      url:
+          'https://belvixdiagnosticindia.com/f/'
+          'how-continuous-glucose-monitoring-is-changing-diabetes-care',
+      description:
+          'CGM is transforming diabetes care by replacing snapshot readings '
+          'with a continuous stream of data. Seeing how glucose responds to '
+          'meals, exercise and sleep uncovers patterns, reduces guesswork and '
+          'enables timely, personalized decisions for better outcomes.',
     ),
   ];
 
@@ -73,6 +102,55 @@ class DiscoverTabContent extends StatelessWidget {
             ),
           ),
         const SizedBox(height: 12),
+      ],
+    );
+  }
+}
+
+/// Opens the article on the website in the device browser.
+Future<void> _openArticle(BuildContext context, String url) async {
+  final uri = Uri.parse(url);
+
+  var opened = false;
+  try {
+    // Prefer an external browser; fall back to the platform default if the
+    // external launch isn't available.
+    opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened) {
+      opened = await launchUrl(uri, mode: LaunchMode.platformDefault);
+    }
+  } catch (_) {
+    opened = false;
+  }
+
+  if (!opened && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Could not open the article right now')),
+    );
+  }
+}
+
+class _SourceRow extends StatelessWidget {
+  const _SourceRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: const [
+        Icon(Icons.public_rounded, size: 15, color: Color(0xFF737983)),
+        SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            'belvixdiagnosticindia.com',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF737983),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -134,6 +212,8 @@ class _DiscoverCard extends StatelessWidget {
                   children: [
                     Text(
                       item.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 16,
                         height: 1.3,
@@ -142,14 +222,7 @@ class _DiscoverCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      'Date : ${item.dateTime}',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF737983),
-                      ),
-                    ),
+                    const _SourceRow(),
                   ],
                 ),
               ),
@@ -227,19 +300,13 @@ class DiscoverDetailScreen extends StatelessWidget {
                       item.title,
                       style: const TextStyle(
                         fontSize: 24,
+                        height: 1.25,
                         fontWeight: FontWeight.w800,
                         color: Color(0xFF111111),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Date : ${item.dateTime}',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF737983),
-                      ),
-                    ),
+                    const SizedBox(height: 10),
+                    const _SourceRow(),
                     const SizedBox(height: 16),
                     Text(
                       item.description,
@@ -248,6 +315,28 @@ class DiscoverDetailScreen extends StatelessWidget {
                         height: 1.5,
                         color: Color(0xFF4E5561),
                         fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () => _openArticle(context, item.url),
+                        icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                        label: const Text('Read full article'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF111111),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          textStyle: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -265,12 +354,14 @@ class DiscoverCardData {
   const DiscoverCardData({
     required this.imagePath,
     required this.title,
-    required this.dateTime,
+    required this.url,
     required this.description,
   });
 
   final String imagePath;
   final String title;
-  final String dateTime;
+
+  /// Original article URL on belvixdiagnosticindia.com.
+  final String url;
   final String description;
 }
