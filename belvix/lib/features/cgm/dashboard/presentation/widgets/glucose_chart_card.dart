@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/widgets/app_surface.dart';
 import 'dashboard_stats_row.dart';
 import 'dashboard_theme.dart';
 
@@ -42,87 +41,84 @@ class GlucoseChartCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurface(
-      padding: const EdgeInsets.fromLTRB(14, 18, 14, 18),
-      radius: DashboardTheme.radiusLg,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SizedBox(
-            height: 260,
-            child: Stack(
-              children: [
-                Positioned.fill(child: chart),
+    final screenWidth = MediaQuery.of(context).size.width;
 
-                // Pinned floating callout pill showing the latest
-                // sample (sits on top of the chart, near the centre).
-                Positioned(
-                  top: 4,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: _ReadingPill(
-                      time: lastReadingLabel,
-                      value: lastReadingValue,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Full-bleed chart: break out of the list's horizontal padding
+        // so the graph spans the entire screen width (no card).
+        SizedBox(
+          height: 260,
+          child: OverflowBox(
+            minWidth: screenWidth,
+            maxWidth: screenWidth,
+            alignment: Alignment.center,
+            child: SizedBox(
+              width: screenWidth,
+              height: 260,
+              child: Stack(
+                children: [
+                  Positioned.fill(child: chart),
+
+                  // Pinned floating callout pill showing the latest
+                  // sample (sits on top of the chart, near the centre).
+                  Positioned(
+                    top: 4,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: _ReadingPill(
+                        time: lastReadingLabel,
+                        value: lastReadingValue,
+                      ),
                     ),
                   ),
-                ),
-
-                // if (showSpikeTag)
-                //   const Positioned(
-                //     top: 70,
-                //     left: 24,
-                //     right: 24,
-                //     child: Center(
-                //       child: _SpikeTooltip(
-                //         message: 'Hyperglycemic event detected',
-                //       ),
-                //     ),
-                //   ),
-              ],
+                ],
+              ),
             ),
           ),
+        ),
 
-          const SizedBox(height: DashboardTheme.space16),
+        const SizedBox(height: DashboardTheme.space16),
 
-          // Bottom toggle pill from the figma — purely decorative
-          // (matches the static figma element).
-          Center(
-            child: Container(
-              width: 42,
-              height: 22,
-              decoration: BoxDecoration(
-                color: DashboardTheme.track,
-                borderRadius: BorderRadius.circular(DashboardTheme.radiusPill),
-              ),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Container(
-                  width: 18,
-                  height: 18,
-                  margin: const EdgeInsets.symmetric(horizontal: 2),
-                  decoration: const BoxDecoration(
-                    color: DashboardTheme.textPrimary,
-                    shape: BoxShape.circle,
-                  ),
+        // Bottom toggle pill from the figma — purely decorative
+        // (matches the static figma element).
+        Center(
+          child: Container(
+            width: 42,
+            height: 22,
+            decoration: BoxDecoration(
+              color: DashboardTheme.track,
+              borderRadius: BorderRadius.circular(DashboardTheme.radiusPill),
+            ),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                width: 18,
+                height: 18,
+                margin: const EdgeInsets.symmetric(horizontal: 2),
+                decoration: const BoxDecoration(
+                  color: DashboardTheme.textPrimary,
+                  shape: BoxShape.circle,
                 ),
               ),
             ),
           ),
+        ),
 
-          const SizedBox(height: DashboardTheme.space16),
+        const SizedBox(height: DashboardTheme.space16),
 
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: DashboardStatsRow(
-              avgGlucose: avgGlucose,
-              stdDev: stdDev,
-              spikeTime: spikeTime,
-              spikeCount: spikeCount,
-            ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: DashboardStatsRow(
+            avgGlucose: avgGlucose,
+            stdDev: stdDev,
+            spikeTime: spikeTime,
+            spikeCount: spikeCount,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

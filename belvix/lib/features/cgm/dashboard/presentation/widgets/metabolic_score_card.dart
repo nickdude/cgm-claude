@@ -1,5 +1,9 @@
-import 'package:flutter/material.dart';
+import 'dart:math' as math;
 
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+import '../../../../../app/constants/app_assets.dart';
 import '../../../../../core/widgets/app_surface.dart';
 import 'dashboard_theme.dart';
 
@@ -53,13 +57,22 @@ class MetabolicScoreCard extends StatelessWidget {
               ),
               const SizedBox(width: 4),
               Padding(
-                padding: const EdgeInsets.only(top: 3),
-                child: Icon(
-                  trendUp
-                      ? Icons.arrow_upward_rounded
-                      : Icons.arrow_downward_rounded,
-                  size: 18,
-                  color: DashboardTheme.accent,
+                padding: const EdgeInsets.only(top: 4),
+                // arrow.svg points up-right (↗); rotate to ↑ for an
+                // upward trend and ↓ for a downward one.
+                child: Transform.rotate(
+                  angle: trendUp
+                      ? -math.pi / 4
+                      : 3 * math.pi / 4,
+                  child: SvgPicture.asset(
+                    AppAssets.trendArrow,
+                    width: 16,
+                    height: 16,
+                    colorFilter: const ColorFilter.mode(
+                      DashboardTheme.accent,
+                      BlendMode.srcIn,
+                    ),
+                  ),
                 ),
               ),
             ],
