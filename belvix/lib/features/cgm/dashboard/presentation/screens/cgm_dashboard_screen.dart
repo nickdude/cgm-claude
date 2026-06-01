@@ -847,8 +847,11 @@ class _SegmentedMeter extends StatelessWidget {
 // Timeline
 // ---------------------------------------------------------------------------
 
+enum _TimelineFilter { all, food, exercise, insulin, finger }
+
 class _TimelineEntry {
   const _TimelineEntry({
+    required this.kind,
     required this.icon,
     required this.iconColor,
     required this.time,
@@ -856,6 +859,9 @@ class _TimelineEntry {
     this.subtitle,
   });
 
+  /// Used by the filter tabs. Glucose alerts use [_TimelineFilter.all] so
+  /// they only show under "All".
+  final _TimelineFilter kind;
   final IconData icon;
   final Color iconColor;
   final String time;
@@ -863,8 +869,15 @@ class _TimelineEntry {
   final String? subtitle;
 }
 
-class _TimelineSection extends StatelessWidget {
+class _TimelineSection extends StatefulWidget {
   const _TimelineSection();
+
+  @override
+  State<_TimelineSection> createState() => _TimelineSectionState();
+}
+
+class _TimelineSectionState extends State<_TimelineSection> {
+  _TimelineFilter _filter = _TimelineFilter.all;
 
   @override
   Widget build(BuildContext context) {
@@ -889,6 +902,7 @@ class _TimelineSection extends StatelessWidget {
           if (r.glucoseValue > 110) {
             entries.add(
               _TimelineEntry(
+                kind: _TimelineFilter.all,
                 icon: Icons.error_outline,
                 iconColor: DashboardTheme.danger,
                 time: DateFormat('h:mm a').format(r.readingAt),
@@ -905,6 +919,7 @@ class _TimelineSection extends StatelessWidget {
         for (final f in food.foods) {
           entries.add(
             _TimelineEntry(
+              kind: _TimelineFilter.food,
               icon: Icons.restaurant,
               iconColor: DashboardTheme.textPrimary,
               time: f.time,
@@ -918,6 +933,7 @@ class _TimelineSection extends StatelessWidget {
         for (final e in exercise.exercises) {
           entries.add(
             _TimelineEntry(
+              kind: _TimelineFilter.exercise,
               icon: Icons.monitor_heart_outlined,
               iconColor: DashboardTheme.textPrimary,
               time: e.time,
@@ -931,6 +947,7 @@ class _TimelineSection extends StatelessWidget {
         for (final i in insulin.insulins) {
           entries.add(
             _TimelineEntry(
+              kind: _TimelineFilter.insulin,
               icon: Icons.water_drop_outlined,
               iconColor: const Color(0xFF7C3AED),
               time: i.time,
@@ -944,6 +961,7 @@ class _TimelineSection extends StatelessWidget {
         for (final f in finger.fingerBloods) {
           entries.add(
             _TimelineEntry(
+              kind: _TimelineFilter.finger,
               icon: Icons.bloodtype_outlined,
               iconColor: DashboardTheme.danger,
               time: f.time,
@@ -953,15 +971,28 @@ class _TimelineSection extends StatelessWidget {
           );
         }
 
+        final visible = _filter == _TimelineFilter.all
+            ? entries
+            : entries.where((e) => e.kind == _filter).toList();
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Timeline', style: _h2),
+            const SizedBox(height: 12),
+            _TimelineTabs(
+              selected: _filter,
+              onSelected: (f) => setState(() => _filter = f),
+            ),
             const SizedBox(height: 14),
-            if (entries.isEmpty)
-              const _EmptyHint('No events logged for today yet.')
+            if (visible.isEmpty)
+              _EmptyHint(
+                _filter == _TimelineFilter.all
+                    ? 'No events logged for today yet.'
+                    : 'No ${_filterLabel(_filter).toLowerCase()} logged yet.',
+              )
             else
-              for (final e in entries)
+              for (final e in visible)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: _TimelineCard(entry: e),
@@ -969,6 +1000,114 @@ class _TimelineSection extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+String _filterLabel(_TimelineFilter f) {
+  switch (f) {
+    case _TimelineFilter.all:
+      return 'All';
+    case _TimelineFilter.food:
+      return 'Food';
+    case _TimelineFilter.exercise:
+      return 'Exercise';
+    case _TimelineFilter.insulin:
+      return 'Insulin';
+    case _TimelineFilter.finger:
+      return 'Finger Blood';
+  }
+}
+
+/// Horizontally scrollable pill tabs for filtering the timeline.
+/// Short label used on the compact segmented tabs.
+String _filterTab(_TimelineFilter f) =>
+    f == _TimelineFilter.finger ? 'Finger' : _filterLabel(f);
+
+/// Segmented control: a grey track with the selected option as a green
+/// pill and thin dividers between the unselected ones.
+class _TimelineTabs extends StatelessWidget {
+  const _TimelineTabs({required this.selected, required this.onSelected});
+
+  final _TimelineFilter selected;
+  final ValueChanged<_TimelineFilter> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final filters = _TimelineFilter.values;
+
+    // Material paints the fills (a plain BoxDecoration renders transparent
+    // on some devices).
+    return Material(
+      color: const Color(0xFFEDEEF1),
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Row(
+          children: [
+            for (var i = 0; i < filters.length; i++) ...[
+              Expanded(
+                child: _Segment(
+                  label: _filterTab(filters[i]),
+                  selected: filters[i] == selected,
+                  onTap: () => onSelected(filters[i]),
+                ),
+              ),
+              if (i < filters.length - 1)
+                SizedBox(
+                  width: 1,
+                  height: 16,
+                  child: ColoredBox(
+                    color:
+                        (filters[i] != selected &&
+                            filters[i + 1] != selected)
+                        ? const Color(0xFFCDD2D9)
+                        : Colors.transparent,
+                  ),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Segment extends StatelessWidget {
+  const _Segment({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? DashboardTheme.accent : Colors.transparent,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 9),
+          child: Center(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: selected ? Colors.white : DashboardTheme.textSecondary,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
