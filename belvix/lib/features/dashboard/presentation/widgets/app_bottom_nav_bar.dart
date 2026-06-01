@@ -196,11 +196,11 @@ class QuickActionMenu extends StatelessWidget {
       label: 'Insulin',
       icon: Icons.vaccines,
     ),
-    _QuickActionItemData(
-      type: QuickActionType.medicine,
-      label: 'Medicine',
-      icon: Icons.medication,
-    ),
+    // _QuickActionItemData(
+    //   type: QuickActionType.medicine,
+    //   label: 'Medicine',
+    //   icon: Icons.medication,
+    // ),
     _QuickActionItemData(
       type: QuickActionType.exercise,
       label: 'Exercise',

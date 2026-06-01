@@ -144,7 +144,9 @@ class _CGMDashboardScreenState extends State<CGMDashboardScreen> {
         },
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+          // Extra bottom padding so the last card clears the floating
+          // bottom navigation bar at the end of the scroll.
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
           children: [
             _WeekStripSection(
               selectedDay: _selectedDay,
@@ -162,8 +164,6 @@ class _CGMDashboardScreenState extends State<CGMDashboardScreen> {
             const _TimelineSection(),
             const SizedBox(height: 20),
             const _TotalMacrosSection(),
-            const SizedBox(height: 16),
-            _TrendsFooter(selectedDay: _selectedDay),
           ],
         ),
       ),
@@ -210,9 +210,7 @@ class _WeekStripSection extends StatelessWidget {
 
           final snapshot = DaySnapshot.forDay(date, provider.readings);
           if (!snapshot.hasReadings) {
-            days.add(
-              WeekDayScore(date: date, label: labels[date.weekday - 1]),
-            );
+            days.add(WeekDayScore(date: date, label: labels[date.weekday - 1]));
             continue;
           }
 
@@ -352,7 +350,7 @@ class _GaugeSection extends StatelessWidget {
             value: snapshot.glucose,
             fillFraction: fill,
             trend: trend,
-            timeInRange: provider.timeInRangePercent,
+            timeInRange: snapshot.timeInRangePercent,
           ),
         );
       },
@@ -419,10 +417,6 @@ class _ChartSection extends StatelessWidget {
           );
         }
 
-        final last = snapshot.readings.last;
-        final lastTime = DateFormat('h:mm').format(last.readingAt);
-        final lastValue = '${last.glucoseValue.round()} mg/dL';
-
         return GlucoseChartCard(
           chart: GlucoseTrendChart(
             // Stable per-day key: a new reading updates the existing chart
@@ -431,8 +425,6 @@ class _ChartSection extends StatelessWidget {
             readings: snapshot.readings,
           ),
           showSpikeTag: snapshot.spikeCount > 0,
-          lastReadingLabel: lastTime,
-          lastReadingValue: lastValue,
           avgGlucose: snapshot.averageGlucose,
           stdDev: snapshot.stdDev,
           spikeTime: snapshot.spikeTime,
@@ -1147,146 +1139,6 @@ class _MacroRing extends StatelessWidget {
       ],
     );
   }
-}
-
-// ---------------------------------------------------------------------------
-// Trends footer
-// ---------------------------------------------------------------------------
-
-class _TrendsFooter extends StatelessWidget {
-  const _TrendsFooter({required this.selectedDay});
-
-  final DateTime selectedDay;
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<CGMDashboardProvider>(
-      builder: (context, provider, _) {
-        final s = DaySnapshot.forDay(selectedDay, provider.readings);
-        final values = s.readings
-            .map((r) => r.glucoseValue)
-            .toList(growable: false);
-
-        return AppSurface(
-          padding: const EdgeInsets.all(18),
-          radius: DashboardTheme.radiusLg,
-          child: Column(
-            children: [
-              Row(
-                children: const [
-                  Expanded(
-                    child: Text.rich(
-                      TextSpan(
-                        children: [
-                          TextSpan(
-                            text: 'Glu. Variability  ',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: DashboardTheme.textPrimary,
-                            ),
-                          ),
-                          TextSpan(
-                            text: 'Avg. Glucose  ·  Trends',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: DashboardTheme.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Icon(Icons.chevron_right, color: DashboardTheme.textMuted),
-                ],
-              ),
-              const SizedBox(height: 14),
-              const Divider(height: 1, color: Color(0xFFF0F2F5)),
-              const SizedBox(height: 14),
-              SizedBox(
-                height: 36,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: CustomPaint(
-                        painter: _SparklinePainter(
-                          values,
-                          DashboardTheme.accent,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: CustomPaint(
-                        painter: _SparklinePainter(
-                          values,
-                          DashboardTheme.textMuted,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _SparklinePainter extends CustomPainter {
-  _SparklinePainter(this.values, this.color);
-
-  final List<double> values;
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (values.length < 2) {
-      // Flat line fallback so the card never looks broken.
-      final p = Paint()
-        ..color = color
-        ..strokeWidth = 2
-        ..strokeCap = StrokeCap.round;
-      canvas.drawLine(
-        Offset(0, size.height / 2),
-        Offset(size.width, size.height / 2),
-        p,
-      );
-      return;
-    }
-
-    final minV = values.reduce((a, b) => a < b ? a : b);
-    final maxV = values.reduce((a, b) => a > b ? a : b);
-    final span = (maxV - minV).abs() < 1 ? 1 : (maxV - minV);
-
-    final path = Path();
-    for (var i = 0; i < values.length; i++) {
-      final x = size.width * i / (values.length - 1);
-      final y = size.height - ((values[i] - minV) / span) * size.height;
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-    }
-
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = color
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _SparklinePainter old) =>
-      old.values != values || old.color != color;
 }
 
 // ---------------------------------------------------------------------------

@@ -13,8 +13,6 @@ class GlucoseChartCard extends StatelessWidget {
     super.key,
     required this.chart,
     required this.showSpikeTag,
-    required this.lastReadingLabel,
-    required this.lastReadingValue,
     required this.avgGlucose,
     required this.stdDev,
     required this.spikeTime,
@@ -27,12 +25,6 @@ class GlucoseChartCard extends StatelessWidget {
 
   /// Whether to show the floating black "Hyperglycemic event" tooltip.
   final bool showSpikeTag;
-
-  /// E.g. "8:54".
-  final String lastReadingLabel;
-
-  /// E.g. "112 mg/dL".
-  final String lastReadingValue;
 
   final int avgGlucose;
   final int stdDev;
@@ -57,25 +49,7 @@ class GlucoseChartCard extends StatelessWidget {
             child: SizedBox(
               width: screenWidth,
               height: 260,
-              child: Stack(
-                children: [
-                  Positioned.fill(child: chart),
-
-                  // Pinned floating callout pill showing the latest
-                  // sample (sits on top of the chart, near the centre).
-                  Positioned(
-                    top: 4,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: _ReadingPill(
-                        time: lastReadingLabel,
-                        value: lastReadingValue,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              child: chart,
             ),
           ),
         ),
@@ -119,54 +93,6 @@ class GlucoseChartCard extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// White rounded pill showing "08:54 / 112 mg/dL".
-class _ReadingPill extends StatelessWidget {
-  const _ReadingPill({required this.time, required this.value});
-
-  final String time;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-      decoration: BoxDecoration(
-        color: DashboardTheme.surface,
-        borderRadius: BorderRadius.circular(DashboardTheme.radiusSm),
-        border: Border.all(color: DashboardTheme.track),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 12,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            time,
-            style: const TextStyle(
-              fontSize: 11,
-              color: DashboardTheme.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              color: DashboardTheme.textPrimary,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
