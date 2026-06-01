@@ -437,9 +437,14 @@ class _TrendPainter extends CustomPainter {
     final iStart = _firstVisible(dx, plot, values.length);
     final iEnd = _lastVisible(dx, plot, values.length);
 
+    // Drop points that don't advance at least ~1px in X. Time-clustered
+    // readings (sync/live bursts) would otherwise stack into a vertical
+    // "comb" of oscillations; zooming in separates them and restores detail.
+    final idx = _decimateVisible(dx, iStart, iEnd);
+
     canvas.save();
     canvas.clipRect(plot);
-    _paintAreaAndLine(canvas, plot, values, dx, dy, iStart, iEnd);
+    _paintAreaAndLine(canvas, plot, values, dx, dy, idx);
     canvas.restore();
 
     _paintBandLabels(canvas, plot, dy);
@@ -541,31 +546,58 @@ class _TrendPainter extends CustomPainter {
 
   // --- Smooth, range-coloured line + area fill ---
 
+  /// Visible indices thinned so no two consecutive points are closer than
+  /// ~1px in X — collapses time-clustered bursts that cause oscillation.
+  List<int> _decimateVisible(double Function(int) dx, int iStart, int iEnd) {
+    if (iEnd <= iStart) return [iStart, iEnd];
+    const minDx = 1.0;
+    final out = <int>[iStart];
+    var lastX = dx(iStart);
+    for (var i = iStart + 1; i < iEnd; i++) {
+      final x = dx(i);
+      if (x - lastX >= minDx) {
+        out.add(i);
+        lastX = x;
+      }
+    }
+    out.add(iEnd);
+    return out;
+  }
+
   void _paintAreaAndLine(
     Canvas canvas,
     Rect plot,
     List<double> values,
     double Function(int) dx,
     double Function(double) dy,
-    int iStart,
-    int iEnd,
+    List<int> idx,
   ) {
-    Offset pt(int j) {
-      final c = j.clamp(0, values.length - 1);
-      return Offset(dx(c), dy(values[c]));
+    if (idx.length < 2) return;
+
+    int rawAt(int k) => idx[k.clamp(0, idx.length - 1)].clamp(
+      0,
+      values.length - 1,
+    );
+    Offset pt(int k) {
+      final j = rawAt(k);
+      return Offset(dx(j), dy(values[j]));
     }
 
+    double valAt(int k) => values[rawAt(k)];
+
+    final n = idx.length;
+
     // Area fill under the smooth curve (single soft-green gradient).
-    final area = Path()..moveTo(pt(iStart).dx, plot.bottom);
-    area.lineTo(pt(iStart).dx, pt(iStart).dy);
-    for (var i = iStart; i < iEnd; i++) {
-      final p1 = pt(i);
-      final p2 = pt(i + 1);
-      final c1 = p1 + (pt(i + 1) - pt(i - 1)) * _smooth;
-      final c2 = p2 - (pt(i + 2) - pt(i)) * _smooth;
+    final area = Path()..moveTo(pt(0).dx, plot.bottom);
+    area.lineTo(pt(0).dx, pt(0).dy);
+    for (var k = 0; k < n - 1; k++) {
+      final p1 = pt(k);
+      final p2 = pt(k + 1);
+      final c1 = p1 + (pt(k + 1) - pt(k - 1)) * _smooth;
+      final c2 = p2 - (pt(k + 2) - pt(k)) * _smooth;
       area.cubicTo(c1.dx, c1.dy, c2.dx, c2.dy, p2.dx, p2.dy);
     }
-    area.lineTo(pt(iEnd).dx, plot.bottom);
+    area.lineTo(pt(n - 1).dx, plot.bottom);
     area.close();
     canvas.drawPath(
       area,
@@ -585,13 +617,13 @@ class _TrendPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
-    for (var i = iStart; i < iEnd; i++) {
-      final p1 = pt(i);
-      final p2 = pt(i + 1);
-      final c1 = p1 + (pt(i + 1) - pt(i - 1)) * _smooth;
-      final c2 = p2 - (pt(i + 2) - pt(i)) * _smooth;
+    for (var k = 0; k < n - 1; k++) {
+      final p1 = pt(k);
+      final p2 = pt(k + 1);
+      final c1 = p1 + (pt(k + 1) - pt(k - 1)) * _smooth;
+      final c2 = p2 - (pt(k + 2) - pt(k)) * _smooth;
 
-      line.color = GlucoseTrendChart.zoneColor((values[i] + values[i + 1]) / 2);
+      line.color = GlucoseTrendChart.zoneColor((valAt(k) + valAt(k + 1)) / 2);
       final seg = Path()
         ..moveTo(p1.dx, p1.dy)
         ..cubicTo(c1.dx, c1.dy, c2.dx, c2.dy, p2.dx, p2.dy);
