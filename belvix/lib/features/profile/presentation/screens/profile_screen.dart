@@ -136,7 +136,7 @@ class ProfileScreen extends StatelessWidget {
               AppSurface(
                 padding: const EdgeInsets.all(20),
                 radius: 28,
-                color: const Color(0xFF1D4ED8),
+                color: const Color(0xFF0F172A),
                 shadowColor: const Color(0x240F172A),
                 elevation: 6,
                 child: Column(
@@ -163,7 +163,7 @@ class ProfileScreen extends StatelessWidget {
                                 ? Text(
                                     _initialsFor(fullName),
                                     style: const TextStyle(
-                                      color: AppColors.primary,
+                                      color: AppColors.textSecondary,
                                       fontSize: 22,
                                       fontWeight: FontWeight.w800,
                                     ),

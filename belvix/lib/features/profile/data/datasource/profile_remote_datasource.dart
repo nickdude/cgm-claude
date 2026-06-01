@@ -28,7 +28,12 @@ class ProfileRemoteDatasource {
       ),
     );
 
-    return (response.data["data"]?["path"] ?? "").toString();
+    // Server returns { data: { path: "/uploads/..", url: "http://.." } }.
+    // Prefer the relative path (resolved to https on display); fall back
+    // to url so we never silently persist an empty image.
+    final data = response.data["data"];
+
+    return (data?["path"] ?? data?["url"] ?? "").toString();
   }
 
   Future<Response> getProfile() async {

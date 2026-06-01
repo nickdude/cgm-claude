@@ -91,22 +91,46 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     return "$host/$imagePath";
   }
 
-  bool _isValidImageExtension(String filePath) {
-    final segments = filePath.split('.');
+  String _extensionOf(String value) {
+    // Strip any query/fragment (content URIs) before reading the extension.
+    final cleaned = value.split('?').first.split('#').first;
 
-    if (segments.length < 2) return false;
+    final dot = cleaned.lastIndexOf('.');
 
-    final ext = segments.last.toLowerCase();
+    if (dot == -1 || dot == cleaned.length - 1) return '';
 
-    return allowedExtensions.contains(ext);
+    return cleaned.substring(dot + 1).toLowerCase();
+  }
+
+  bool _isValidImage(XFile picked) {
+    // Prefer the file name (most reliable), then the path.
+    final ext = _extensionOf(picked.name).isNotEmpty
+        ? _extensionOf(picked.name)
+        : _extensionOf(picked.path);
+
+    if (ext.isNotEmpty) return allowedExtensions.contains(ext);
+
+    // Some gallery/content URIs expose no extension — fall back to the
+    // mime type, and if that's missing too, allow it (image_picker only
+    // ever returns images).
+    final mime = picked.mimeType?.toLowerCase() ?? '';
+
+    if (mime.isEmpty) return true;
+
+    return mime.contains('jpeg') ||
+        mime.contains('jpg') ||
+        mime.contains('png') ||
+        mime.contains('webp');
   }
 
   Future<void> _setSelectedImage(XFile picked) async {
-    if (!_isValidImageExtension(picked.path)) {
+    if (!_isValidImage(picked)) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Only JPG, PNG, and WEBP are allowed')),
+        const SnackBar(
+          content: Text('Only JPG, JPEG, PNG, and WEBP are allowed'),
+        ),
       );
 
       return;
@@ -326,15 +350,14 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  // Solid dark fill instead of a gradient: the gradient
-                  // was rendering transparent on device (same class of
-                  // bug as the nav "+"), leaving the white text invisible
-                  // on the light page. A solid colour paints reliably.
-                  color: const Color(0xFF0F172A),
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(28),
+                  border: Border.all(
+                    color: const Color(0xFFE8EDF4),
+                  ),
                   boxShadow: const [
                     BoxShadow(
-                      color: Color(0x240F172A),
+                      color: Color(0x140F172A),
                       blurRadius: 24,
                       offset: Offset(0, 12),
                     ),
@@ -345,10 +368,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                     Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.12),
+                        color: const Color(0xFFF1F3F7),
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.18),
+                          color: const Color(0xFFE2E8F0),
                         ),
                       ),
                       child: Stack(
@@ -358,8 +381,11 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                             height: 92,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: Colors.white,
-                              border: Border.all(color: Colors.white, width: 1),
+                              color: const Color(0xFFEDEEF1),
+                              border: Border.all(
+                                color: const Color(0xFFE2E8F0),
+                                width: 1,
+                              ),
                             ),
                             child: ClipOval(
                               child: localImagePath != null
@@ -385,7 +411,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                             right: 0,
                             bottom: 0,
                             child: Material(
-                              color: const Color(0xFF1E88E5),
+                              color: const Color(0xFF64748B),
                               shape: const CircleBorder(),
                               child: InkWell(
                                 customBorder: const CircleBorder(),
