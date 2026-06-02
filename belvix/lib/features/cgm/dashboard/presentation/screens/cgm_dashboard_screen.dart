@@ -19,7 +19,7 @@ import '../providers/cgm_dashboard_provider.dart';
 import '../widgets/dashboard_theme.dart';
 import '../widgets/day_snapshot.dart';
 import '../widgets/glucose_chart_card.dart';
-import '../widgets/glucose_trend_chart.dart';
+import '../widgets/glucose_timeline_chart.dart';
 import '../widgets/glucose_gauge.dart';
 import '../widgets/metabolic_score_card.dart';
 import '../widgets/sensor_warmup_nudge.dart';
@@ -453,9 +453,11 @@ class _ChartSection extends StatelessWidget {
         final today = DateTime(now.year, now.month, now.day);
         final isToday = selectedDay == today;
 
+        // Stats summarise the selected day; the chart itself is a continuous
+        // timeline over ALL loaded readings (scroll/zoom across days).
         final snapshot = DaySnapshot.forDay(selectedDay, dashboard.readings);
 
-        if (!snapshot.hasReadings) {
+        if (dashboard.readings.length < 2) {
           return _ChartEmptyCard(
             isLoading: dashboard.isLoadingHistory,
             day: selectedDay,
@@ -464,12 +466,12 @@ class _ChartSection extends StatelessWidget {
         }
 
         return GlucoseChartCard(
-          chart: GlucoseTrendChart(
-            // Stable per-day key: a new reading updates the existing chart
-            // in place (preserving zoom/scroll/tooltip) instead of rebuilding.
-            key: ValueKey(selectedDay),
-            readings: snapshot.readings,
+          // No key → the State (and its scroll window) persists across
+          // rebuilds and day changes; new readings update it in place.
+          chart: GlucoseTimelineChart(
+            readings: dashboard.readings,
             onAddAtTime: (time) => _showAddAtTime(context, time),
+            onLoadOlder: dashboard.loadOlderReadings,
           ),
           showSpikeTag: snapshot.spikeCount > 0,
           avgGlucose: snapshot.averageGlucose,

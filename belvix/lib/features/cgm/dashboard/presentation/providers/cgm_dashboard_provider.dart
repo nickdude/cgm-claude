@@ -546,6 +546,47 @@ class CGMDashboardProvider extends ChangeNotifier {
     await _loadHistoryFromBackend();
   }
 
+  bool _loadingOlder = false;
+  bool _historyExhausted = false;
+
+  /// Lazy-load older history when the timeline chart scrolls near its oldest
+  /// point. Prepends any genuinely-older readings (de-duped) without
+  /// disturbing the existing ones, so the chart's absolute-time window keeps
+  /// its scroll position. No-ops once the backend has no older data.
+  Future<void> loadOlderReadings() async {
+    if (_loadingOlder || _historyExhausted || isLoadingHistory) return;
+    _loadingOlder = true;
+    try {
+      final oldest = readings.isEmpty ? null : readings.first.readingAt;
+      final fetched = await _repository.listReadings();
+
+      final existing = readings.map(_keyOf).toSet();
+      final older =
+          fetched
+              .where(
+                (r) =>
+                    (oldest == null || r.readingAt.isBefore(oldest)) &&
+                    !existing.contains(_keyOf(r)),
+              )
+              .toList()
+            ..sort((a, b) => a.readingAt.compareTo(b.readingAt));
+
+      if (older.isEmpty) {
+        _historyExhausted = true;
+      } else {
+        for (final r in older) {
+          _syncedKeys.add(_keyOf(r));
+        }
+        readings = _capToWindow([...older, ...readings]);
+        notifyListeners();
+      }
+    } catch (_) {
+      // Leave _historyExhausted false so a later scroll can retry.
+    } finally {
+      _loadingOlder = false;
+    }
+  }
+
   void stopUpdates() {
     _sdkSubscription?.cancel();
 

@@ -1,0 +1,712 @@
+import 'dart:math' as math;
+
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart' hide TextDirection;
+
+import '../../../data/models/cgm_reading_model.dart';
+import 'dashboard_theme.dart';
+
+/// Continuous, timestamp-based glucose timeline.
+///
+/// Unlike a per-day chart, this renders the *whole* loaded reading set on a
+/// single absolute-time axis and shows a sliding **window** of it. Panning
+/// scrolls through time across day boundaries; pinch zooms the window. Only
+/// the visible slice is drawn (binary-search window + 1px decimation), so it
+/// stays smooth with thousands of points. When the window nears the oldest
+/// loaded reading it asks the host to load older history; because the window
+/// is expressed in absolute time, prepended data never shifts the view.
+class GlucoseTimelineChart extends StatefulWidget {
+  const GlucoseTimelineChart({
+    super.key,
+    required this.readings,
+    this.onAddAtTime,
+    this.onLoadOlder,
+    this.initialWindow = const Duration(hours: 12),
+  });
+
+  /// All loaded readings (any order — sorted internally).
+  final List<CgmReadingModel> readings;
+
+  /// Tapped "+" on a reading's tooltip → add an entry at that instant.
+  final void Function(DateTime time)? onAddAtTime;
+
+  /// Called when the window approaches the oldest loaded reading so the host
+  /// can fetch + prepend more history. Should be idempotent / de-duped.
+  final VoidCallback? onLoadOlder;
+
+  final Duration initialWindow;
+
+  // Target band (mg/dL).
+  static const double targetLow = 70;
+  static const double targetHigh = 110;
+
+  static const _green = DashboardTheme.accent;
+  static const _amber = Color(0xFFE89240);
+  static const _red = Color(0xFFE5484D);
+
+  static Color zoneColor(double v) {
+    if (v < targetLow) return _amber;
+    if (v <= targetHigh) return _green;
+    if (v <= 140) return _amber;
+    return _red;
+  }
+
+  @override
+  State<GlucoseTimelineChart> createState() => _GlucoseTimelineChartState();
+}
+
+class _GlucoseTimelineChartState extends State<GlucoseTimelineChart> {
+  static const _rightPad = 34.0; // 110 / 70 labels
+  static const _minSpanMs = 30 * 60 * 1000.0; // 30 min
+  static const _maxSpanMs = 14 * 24 * 60 * 60 * 1000.0; // 14 days
+
+  // Sorted (oldest→newest) copy + its epoch-ms for fast lookups.
+  late List<CgmReadingModel> _sorted;
+  late List<double> _timesMs;
+
+  // Fixed, robust Y-domain over ALL data so the axis doesn't jump on scroll.
+  double _yMin = 70;
+  double _yMax = 180;
+
+  // Visible window, in absolute epoch-ms.
+  double _winEnd = 0;
+  double _winSpan = 0;
+
+  double _plotW = 0;
+
+  // Gesture anchors.
+  double _spanStart = 0;
+  double _focalTimeMs = 0;
+
+  int? _selectedIndex;
+  DateTime? _selectedTime;
+
+  bool _olderRequested = false;
+  double? _oldestLoadedMs;
+
+  @override
+  void initState() {
+    super.initState();
+    _ingest(initial: true);
+  }
+
+  @override
+  void didUpdateWidget(covariant GlucoseTimelineChart old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.readings, widget.readings)) {
+      _ingest(initial: false);
+    }
+  }
+
+  void _ingest({required bool initial}) {
+    _sorted = List<CgmReadingModel>.of(widget.readings)
+      ..sort((a, b) => a.readingAt.compareTo(b.readingAt));
+    _timesMs = _sorted
+        .map((r) => r.readingAt.millisecondsSinceEpoch.toDouble())
+        .toList(growable: false);
+
+    _computeDomain();
+
+    if (_sorted.isEmpty) return;
+
+    if (initial || _winSpan == 0) {
+      // Open on the most recent `initialWindow` of data.
+      _winSpan = widget.initialWindow.inMilliseconds.toDouble();
+      _winEnd = _timesMs.last + _winSpan * 0.04;
+    }
+
+    // Only re-arm the load-older request if older data was actually
+    // prepended — otherwise an idempotent fetch would loop forever.
+    final newOldest = _timesMs.first;
+    if (initial || _oldestLoadedMs == null || newOldest < _oldestLoadedMs!) {
+      _olderRequested = false;
+    }
+    _oldestLoadedMs = newOldest;
+
+    // Window stays put (absolute time) — prepended data never shifts the view.
+    if (_plotW > 0) _winEnd = _clampEnd(_winEnd, _winSpan);
+
+    if (_selectedIndex != null && _selectedIndex! >= _sorted.length) {
+      _selectedIndex = null;
+    }
+  }
+
+  void _computeDomain() {
+    if (_sorted.isEmpty) return;
+    final values = _sorted.map((r) => r.glucoseValue).toList()..sort();
+    double pct(double p) =>
+        values[(p * (values.length - 1)).round().clamp(0, values.length - 1)];
+    _yMin = (pct(0.05) - 15).clamp(40.0, 75.0).toDouble();
+    _yMax = (pct(0.92) + 25).clamp(170.0, 300.0).toDouble();
+  }
+
+  // --- window math ---
+
+  double get _dataMin => _timesMs.first;
+  double get _dataMax => _timesMs.last;
+
+  /// Clamp the window's right edge so it stays over the data (with a small
+  /// right margin), pinning to the newest when the window is wider than the
+  /// whole dataset.
+  double _clampEnd(double end, double span) {
+    final rightMargin = span * 0.06;
+    final maxEnd = _dataMax + rightMargin;
+    final minEnd = _dataMin + span; // winStart can't go past the oldest
+    final lo = math.min(minEnd, maxEnd);
+    return end.clamp(lo, maxEnd).toDouble();
+  }
+
+  double _xForMs(double ms) {
+    final start = _winEnd - _winSpan;
+    return (ms - start) / _winSpan * _plotW;
+  }
+
+  double _msForX(double x) => (_winEnd - _winSpan) + (x / _plotW) * _winSpan;
+
+  double _yForValue(double v, double height) {
+    const topPad = 10.0, bottomPad = 22.0;
+    final bottom = height - bottomPad;
+    final cv = v.clamp(_yMin, _yMax);
+    return bottom - (bottom - topPad) * (cv - _yMin) / (_yMax - _yMin);
+  }
+
+  void _maybeLoadOlder() {
+    if (_olderRequested || widget.onLoadOlder == null || _sorted.isEmpty) {
+      return;
+    }
+    final start = _winEnd - _winSpan;
+    if (start <= _dataMin + _winSpan * 0.3) {
+      _olderRequested = true;
+      widget.onLoadOlder!();
+    }
+  }
+
+  // --- gestures (custom recognizer yields vertical drags to the page) ---
+
+  void _onScaleStart(ScaleStartDetails d) {
+    _spanStart = _winSpan;
+    _focalTimeMs = _msForX(d.localFocalPoint.dx);
+  }
+
+  void _onScaleUpdate(ScaleUpdateDetails d) {
+    if (_plotW <= 0) return;
+    final newSpan = (_spanStart / d.scale).clamp(_minSpanMs, _maxSpanMs);
+    // Keep the time that was under the focal point pinned there (folds pan in).
+    final start = _focalTimeMs - (d.localFocalPoint.dx / _plotW) * newSpan;
+    setState(() {
+      _winSpan = newSpan;
+      _winEnd = _clampEnd(start + newSpan, newSpan);
+    });
+    _maybeLoadOlder();
+  }
+
+  int? _indexAtX(double x) {
+    if (_sorted.isEmpty) return null;
+    final targetMs = _msForX(x);
+    var lo = 0, hi = _timesMs.length - 1;
+    while (lo < hi) {
+      final mid = (lo + hi) >> 1;
+      if (_timesMs[mid] < targetMs) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    if (lo > 0 &&
+        (targetMs - _timesMs[lo - 1]).abs() <=
+            (_timesMs[lo] - targetMs).abs()) {
+      return lo - 1;
+    }
+    return lo;
+  }
+
+  void _select(double x) {
+    final i = _indexAtX(x);
+    setState(() {
+      _selectedIndex = i;
+      _selectedTime = DateTime.fromMillisecondsSinceEpoch(
+        _msForX(x).round(),
+        isUtc: true,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_sorted.length < 2) return const SizedBox.shrink();
+
+    return LayoutBuilder(
+      builder: (context, c) {
+        _plotW = c.maxWidth - _rightPad;
+        _winEnd = _clampEnd(_winEnd, _winSpan);
+
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            RawGestureDetector(
+              gestures: {
+                _TimelineScaleRecognizer:
+                    GestureRecognizerFactoryWithHandlers<
+                      _TimelineScaleRecognizer
+                    >(
+                      () => _TimelineScaleRecognizer(),
+                      (r) {
+                        r.onStart = _onScaleStart;
+                        r.onUpdate = _onScaleUpdate;
+                      },
+                    ),
+                TapGestureRecognizer:
+                    GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
+                      () => TapGestureRecognizer(),
+                      (r) => r.onTapUp = (d) => _select(d.localPosition.dx),
+                    ),
+                LongPressGestureRecognizer:
+                    GestureRecognizerFactoryWithHandlers<
+                      LongPressGestureRecognizer
+                    >(
+                      () => LongPressGestureRecognizer(),
+                      (r) {
+                        r.onLongPressStart = (d) =>
+                            _select(d.localPosition.dx);
+                        r.onLongPressMoveUpdate = (d) =>
+                            _select(d.localPosition.dx);
+                      },
+                    ),
+              },
+              child: CustomPaint(
+                painter: _TimelinePainter(
+                  sorted: _sorted,
+                  timesMs: _timesMs,
+                  winEnd: _winEnd,
+                  winSpan: _winSpan,
+                  yMin: _yMin,
+                  yMax: _yMax,
+                  selectedIndex: _selectedIndex,
+                ),
+                child: const SizedBox.expand(),
+              ),
+            ),
+            ..._buildTooltip(c.maxHeight),
+          ],
+        );
+      },
+    );
+  }
+
+  List<Widget> _buildTooltip(double height) {
+    final idx = _selectedIndex;
+    if (idx == null || idx < 0 || idx >= _sorted.length) return const [];
+
+    final px = _xForMs(_timesMs[idx]);
+    if (px < 0 || px > _plotW) return const [];
+
+    final r = _sorted[idx];
+    final py = _yForValue(r.glucoseValue, height);
+    final above = py > 76;
+    final tx = px.clamp(86.0, math.max(86.0, _plotW - 86.0)).toDouble();
+    final time = _selectedTime ?? r.readingAt;
+
+    return [
+      Positioned(
+        left: tx,
+        top: above ? py - 12 : py + 12,
+        child: FractionalTranslation(
+          translation: Offset(-0.5, above ? -1.0 : 0.0),
+          child: _AddTooltip(
+            valueText: '${r.glucoseValue.round()} mg/dL',
+            timeText: DateFormat('MMM d • h:mm a').format(time.toLocal()),
+            onAdd: () => widget.onAddAtTime?.call(time),
+          ),
+        ),
+      ),
+    ];
+  }
+}
+
+class _TimelinePainter extends CustomPainter {
+  _TimelinePainter({
+    required this.sorted,
+    required this.timesMs,
+    required this.winEnd,
+    required this.winSpan,
+    required this.yMin,
+    required this.yMax,
+    required this.selectedIndex,
+  });
+
+  final List<CgmReadingModel> sorted;
+  final List<double> timesMs;
+  final double winEnd;
+  final double winSpan;
+  final double yMin;
+  final double yMax;
+  final int? selectedIndex;
+
+  static const _rightPad = 34.0;
+  static const _bottomPad = 22.0;
+  static const _topPad = 26.0; // room for the dynamic date header
+  static const _smooth = 0.18;
+
+  double get _winStart => winEnd - winSpan;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final plot = Rect.fromLTRB(
+      0,
+      _topPad,
+      size.width - _rightPad,
+      size.height - _bottomPad,
+    );
+
+    double dx(int i) => plot.left + (timesMs[i] - _winStart) / winSpan * plot.width;
+    double dy(double v) {
+      final cv = v.clamp(yMin, yMax);
+      return plot.bottom - plot.height * (cv - yMin) / (yMax - yMin);
+    }
+
+    double timeAt(double sx) => _winStart + (sx - plot.left) / plot.width * winSpan;
+
+    _paintBand(canvas, plot, dy);
+
+    // Visible index window (one beyond each edge so the line reaches off-screen).
+    final iStart = _lowerBound(_winStart) - 1;
+    final iEnd = _lowerBound(winEnd) + 1;
+    final s = iStart.clamp(0, sorted.length - 1);
+    final e = iEnd.clamp(0, sorted.length - 1);
+
+    final idx = _decimate(dx, s, e);
+
+    canvas.save();
+    canvas.clipRect(plot);
+    _paintAreaAndLine(canvas, plot, dx, dy, idx);
+    canvas.restore();
+
+    _paintBandLabels(canvas, plot, dy);
+    _paintAxis(canvas, plot, timeAt);
+    _paintRangeHeader(canvas, plot, timeAt);
+    _paintTooltipGuide(canvas, plot, dx, dy);
+  }
+
+  int _lowerBound(double ms) {
+    var lo = 0, hi = timesMs.length;
+    while (lo < hi) {
+      final mid = (lo + hi) >> 1;
+      if (timesMs[mid] < ms) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    return lo;
+  }
+
+  List<int> _decimate(double Function(int) dx, int s, int e) {
+    if (e <= s) return [s, e];
+    const minDx = 1.0;
+    final out = <int>[s];
+    var lastX = dx(s);
+    for (var i = s + 1; i < e; i++) {
+      final x = dx(i);
+      if (x - lastX >= minDx) {
+        out.add(i);
+        lastX = x;
+      }
+    }
+    out.add(e);
+    return out;
+  }
+
+  void _paintBand(Canvas canvas, Rect plot, double Function(double) dy) {
+    canvas.drawRect(
+      Rect.fromLTRB(
+        plot.left,
+        dy(GlucoseTimelineChart.targetHigh),
+        plot.right,
+        dy(GlucoseTimelineChart.targetLow),
+      ),
+      Paint()..color = const Color(0x0A16A34A),
+    );
+    for (final level in [
+      GlucoseTimelineChart.targetHigh,
+      GlucoseTimelineChart.targetLow,
+    ]) {
+      final y = dy(level);
+      _dashedLine(
+        canvas,
+        Offset(plot.left, y),
+        Offset(plot.right, y),
+        const Color(0xFFD7DCE2),
+      );
+    }
+  }
+
+  void _paintBandLabels(Canvas canvas, Rect plot, double Function(double) dy) {
+    for (final entry in {
+      GlucoseTimelineChart.targetHigh: '110',
+      GlucoseTimelineChart.targetLow: '70',
+    }.entries) {
+      final y = dy(entry.key);
+      final tp = _text(entry.value, DashboardTheme.textMuted, FontWeight.w600);
+      tp.paint(canvas, Offset(plot.right + 8, y - tp.height / 2));
+    }
+  }
+
+  void _paintAreaAndLine(
+    Canvas canvas,
+    Rect plot,
+    double Function(int) dx,
+    double Function(double) dy,
+    List<int> idx,
+  ) {
+    if (idx.length < 2) return;
+
+    int raw(int k) => idx[k.clamp(0, idx.length - 1)];
+    Offset pt(int k) {
+      final j = raw(k);
+      return Offset(dx(j), dy(sorted[j].glucoseValue));
+    }
+
+    double valAt(int k) => sorted[raw(k)].glucoseValue;
+    final n = idx.length;
+
+    final area = Path()
+      ..moveTo(pt(0).dx, plot.bottom)
+      ..lineTo(pt(0).dx, pt(0).dy);
+    for (var k = 0; k < n - 1; k++) {
+      final p1 = pt(k), p2 = pt(k + 1);
+      final c1 = p1 + (pt(k + 1) - pt(k - 1)) * _smooth;
+      final c2 = p2 - (pt(k + 2) - pt(k)) * _smooth;
+      area.cubicTo(c1.dx, c1.dy, c2.dx, c2.dy, p2.dx, p2.dy);
+    }
+    area.lineTo(pt(n - 1).dx, plot.bottom);
+    area.close();
+    canvas.drawPath(
+      area,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0x2616A34A), Color(0x0016A34A)],
+        ).createShader(plot),
+    );
+
+    final line = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    for (var k = 0; k < n - 1; k++) {
+      final p1 = pt(k), p2 = pt(k + 1);
+      final c1 = p1 + (pt(k + 1) - pt(k - 1)) * _smooth;
+      final c2 = p2 - (pt(k + 2) - pt(k)) * _smooth;
+      line.color = GlucoseTimelineChart.zoneColor((valAt(k) + valAt(k + 1)) / 2);
+      canvas.drawPath(
+        Path()
+          ..moveTo(p1.dx, p1.dy)
+          ..cubicTo(c1.dx, c1.dy, c2.dx, c2.dy, p2.dx, p2.dy),
+        line,
+      );
+    }
+  }
+
+  /// Bottom time axis — labels adapt to the window span (times within a day,
+  /// dates when zoomed out across days).
+  void _paintAxis(Canvas canvas, Rect plot, double Function(double) timeAt) {
+    final multiDay = winSpan > 36 * 60 * 60 * 1000.0;
+    final fmt = DateFormat(multiDay ? 'MMM d' : 'h a');
+    const count = 4;
+    for (var i = 0; i < count; i++) {
+      final f = i / (count - 1);
+      final sx = plot.left + plot.width * f;
+      final t = DateTime.fromMillisecondsSinceEpoch(timeAt(sx).round());
+      final label = fmt.format(t).toLowerCase();
+      final tp = _text(label, DashboardTheme.textMuted, FontWeight.w500);
+      var x = sx - tp.width / 2;
+      x = x.clamp(plot.left, plot.right - tp.width);
+      tp.paint(canvas, Offset(x, plot.bottom + 6));
+    }
+  }
+
+  /// Dynamic date range shown at the top, updating as the window scrolls.
+  void _paintRangeHeader(Canvas canvas, Rect plot, double Function(double) timeAt) {
+    final start = DateTime.fromMillisecondsSinceEpoch(timeAt(plot.left).round());
+    final end = DateTime.fromMillisecondsSinceEpoch(timeAt(plot.right).round());
+    final sameDay =
+        start.year == end.year && start.month == end.month && start.day == end.day;
+    final label = sameDay
+        ? DateFormat('EEE, MMM d').format(start)
+        : '${DateFormat('MMM d').format(start)} – '
+              '${DateFormat('MMM d').format(end)}';
+    final tp = _text(label, DashboardTheme.textSecondary, FontWeight.w700, size: 12.5);
+    tp.paint(canvas, Offset(plot.left, 4));
+  }
+
+  void _paintTooltipGuide(
+    Canvas canvas,
+    Rect plot,
+    double Function(int) dx,
+    double Function(double) dy,
+  ) {
+    final idx = selectedIndex;
+    if (idx == null || idx < 0 || idx >= sorted.length) return;
+    final px = dx(idx);
+    if (px < plot.left || px > plot.right) return;
+    final r = sorted[idx];
+    final py = dy(r.glucoseValue);
+    final color = GlucoseTimelineChart.zoneColor(r.glucoseValue);
+    _dashedLine(
+      canvas,
+      Offset(px, plot.top),
+      Offset(px, plot.bottom),
+      const Color(0xFFB7BEC7),
+    );
+    canvas.drawCircle(Offset(px, py), 7, Paint()..color = color.withValues(alpha: 0.18));
+    canvas.drawCircle(Offset(px, py), 5.5, Paint()..color = Colors.white);
+    canvas.drawCircle(Offset(px, py), 4, Paint()..color = color);
+  }
+
+  TextPainter _text(String s, Color c, FontWeight w, {double size = 11}) {
+    return TextPainter(
+      text: TextSpan(
+        text: s,
+        style: TextStyle(color: c, fontSize: size, fontWeight: w),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+  }
+
+  void _dashedLine(Canvas canvas, Offset a, Offset b, Color color) {
+    const dash = 5.0, gap = 4.0;
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1;
+    final total = (b - a).distance;
+    if (total == 0) return;
+    final dir = (b - a) / total;
+    var d = 0.0;
+    while (d < total) {
+      canvas.drawLine(a + dir * d, a + dir * math.min(d + dash, total), paint);
+      d += dash + gap;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _TimelinePainter old) =>
+      old.winEnd != winEnd ||
+      old.winSpan != winSpan ||
+      old.selectedIndex != selectedIndex ||
+      old.yMin != yMin ||
+      old.yMax != yMax ||
+      !identical(old.sorted, sorted);
+}
+
+/// ScaleGestureRecognizer that yields single-finger VERTICAL drags to the
+/// enclosing scroll view (so the page still scrolls) while keeping horizontal
+/// pan + pinch zoom.
+class _TimelineScaleRecognizer extends ScaleGestureRecognizer {
+  final Map<int, Offset> _downAt = {};
+  bool _decided = false;
+
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    _downAt[event.pointer] = event.position;
+    if (_downAt.length >= 2) _decided = true;
+    super.addAllowedPointer(event);
+  }
+
+  @override
+  void handleEvent(PointerEvent event) {
+    if (!_decided && _downAt.length == 1 && event is PointerMoveEvent) {
+      final start = _downAt[event.pointer];
+      if (start != null) {
+        final delta = event.position - start;
+        if (delta.distance >= kTouchSlop) {
+          if (delta.dy.abs() > delta.dx.abs()) {
+            _decided = true;
+            resolve(GestureDisposition.rejected);
+            super.handleEvent(event);
+            return;
+          }
+          _decided = true;
+        }
+      }
+    }
+    super.handleEvent(event);
+  }
+
+  @override
+  void didStopTrackingLastPointer(int pointer) {
+    _downAt.clear();
+    _decided = false;
+    super.didStopTrackingLastPointer(pointer);
+  }
+}
+
+/// Dark pill tooltip with a green "+" button (Material-painted so it renders
+/// reliably).
+class _AddTooltip extends StatelessWidget {
+  const _AddTooltip({
+    required this.valueText,
+    required this.timeText,
+    required this.onAdd,
+  });
+
+  final String valueText;
+  final String timeText;
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xF21B1F23),
+      borderRadius: BorderRadius.circular(24),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 7, 7, 7),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  valueText,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  timeText,
+                  style: const TextStyle(
+                    color: Color(0xFFC7CDD6),
+                    fontWeight: FontWeight.w500,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 12),
+            Material(
+              color: DashboardTheme.accent,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: onAdd,
+                child: const SizedBox(
+                  width: 34,
+                  height: 34,
+                  child: Icon(Icons.add, color: Colors.white, size: 20),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
