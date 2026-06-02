@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/widgets/app_surface.dart';
+import '../../../../core/widgets/empty_state.dart';
 import '../providers/insulin_provider.dart';
 
 class InsulinScreen
@@ -42,7 +43,17 @@ class _InsulinScreenState
             const Text("Insulin"),
       ),
 
-      body: ListView.builder(
+      body: provider.insulins.isEmpty
+          ? (provider.isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : const EmptyState(
+                    icon: Icons.vaccines_outlined,
+                    title: 'No insulin logged yet',
+                    message:
+                        'Your insulin doses will appear here.\n'
+                        'Tap + to add your first one.',
+                  ))
+          : ListView.builder(
         padding:
             const EdgeInsets.all(20),
 

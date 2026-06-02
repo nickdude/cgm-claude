@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/widgets/app_surface.dart';
+import '../../../../core/widgets/empty_state.dart';
 import '../providers/food_provider.dart';
 
 import '../widgets/add_food_bottomsheet.dart';
@@ -41,7 +42,17 @@ class _FoodScreenState
         title: const Text("Food"),
       ),
 
-      body: ListView.builder(
+      body: provider.foods.isEmpty
+          ? (provider.isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : const EmptyState(
+                    icon: Icons.restaurant_menu_outlined,
+                    title: 'No food added yet',
+                    message:
+                        'Your logged meals will appear here.\n'
+                        'Tap + to add your first one.',
+                  ))
+          : ListView.builder(
         padding:
             const EdgeInsets.all(20),
 

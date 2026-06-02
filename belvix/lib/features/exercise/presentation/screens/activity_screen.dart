@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/widgets/app_surface.dart';
+import '../../../../core/widgets/empty_state.dart';
 import '../providers/exercise_provider.dart';
 
 import '../widgets/add_exercise_bottomsheet.dart';
@@ -44,7 +45,17 @@ class _ActivityScreenState
             const Text("Activities"),
       ),
 
-      body: ListView.builder(
+      body: provider.exercises.isEmpty
+          ? (provider.isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : const EmptyState(
+                    icon: Icons.directions_run_outlined,
+                    title: 'No activity logged yet',
+                    message:
+                        'Your workouts will appear here.\n'
+                        'Tap + to add your first one.',
+                  ))
+          : ListView.builder(
         padding:
             const EdgeInsets.all(20),
 

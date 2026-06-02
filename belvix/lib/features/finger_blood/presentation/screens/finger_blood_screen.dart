@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/widgets/app_surface.dart';
+import '../../../../core/widgets/empty_state.dart';
 import '../providers/finger_blood_provider.dart';
 
 class FingerBloodScreen
@@ -44,7 +45,17 @@ class _FingerBloodScreenState
         ),
       ),
 
-      body: ListView.builder(
+      body: provider.fingerBloods.isEmpty
+          ? (provider.isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : const EmptyState(
+                    icon: Icons.water_drop_outlined,
+                    title: 'No readings logged yet',
+                    message:
+                        'Your finger-stick readings will appear here.\n'
+                        'Tap + to add your first one.',
+                  ))
+          : ListView.builder(
         padding:
             const EdgeInsets.all(20),
 
