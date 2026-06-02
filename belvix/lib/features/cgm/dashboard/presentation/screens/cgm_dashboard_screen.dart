@@ -1006,7 +1006,7 @@ class _TimelineSectionState extends State<_TimelineSection> {
               icon: Icons.bloodtype_outlined,
               iconColor: DashboardTheme.danger,
               time: f.time,
-              title: 'Finger stick · ${f.glucoseValue} mg/dL',
+              title: 'Glucose Meter · ${f.glucoseValue} mg/dL',
               subtitle: f.notes.isEmpty ? null : f.notes,
             ),
           );
@@ -1056,14 +1056,14 @@ String _filterLabel(_TimelineFilter f) {
     case _TimelineFilter.insulin:
       return 'Insulin';
     case _TimelineFilter.finger:
-      return 'Finger Blood';
+      return 'Glucose Meter';
   }
 }
 
 /// Horizontally scrollable pill tabs for filtering the timeline.
 /// Short label used on the compact segmented tabs.
 String _filterTab(_TimelineFilter f) =>
-    f == _TimelineFilter.finger ? 'Finger' : _filterLabel(f);
+    f == _TimelineFilter.finger ? 'Meter' : _filterLabel(f);
 
 /// Segmented control: a grey track with the selected option as a green
 /// pill and thin dividers between the unselected ones.

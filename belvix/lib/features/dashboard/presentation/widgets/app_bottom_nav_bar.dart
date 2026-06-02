@@ -208,7 +208,7 @@ class QuickActionMenu extends StatelessWidget {
     ),
     _QuickActionItemData(
       type: QuickActionType.fingerBlood,
-      label: 'Finger Blood',
+      label: 'Glucose Meter',
       icon: Icons.water_drop,
     ),
   ];

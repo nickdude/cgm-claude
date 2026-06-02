@@ -41,7 +41,7 @@ class _FingerBloodScreenState
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          "Finger Blood",
+          "Glucose Meter",
         ),
       ),
 
@@ -180,7 +180,7 @@ class _AddFingerBloodDialogState
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text(
-        "Add Finger Blood",
+        "Add Glucose Meter Reading",
       ),
 
       content: Column(
