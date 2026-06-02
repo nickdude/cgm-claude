@@ -19,6 +19,7 @@ import '../providers/cgm_dashboard_provider.dart';
 import '../widgets/dashboard_theme.dart';
 import '../widgets/day_snapshot.dart';
 import '../widgets/glucose_chart_card.dart';
+import '../widgets/glucose_metrics.dart';
 import '../widgets/glucose_timeline_chart.dart';
 import '../widgets/glucose_gauge.dart';
 import '../widgets/metabolic_score_card.dart';
@@ -595,7 +596,7 @@ class _ChartEmptyCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Metric cards (Time above range / Time in range / Excursion / GMI / Osc.)
+// Interpretation cards (dynamic, per selected day + 14-day GMI/CV)
 // ---------------------------------------------------------------------------
 
 class _MetricsSection extends StatelessWidget {
@@ -605,92 +606,55 @@ class _MetricsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<CGMDashboardProvider>(
-      builder: (context, provider, _) {
-        final s = DaySnapshot.forDay(selectedDay, provider.readings);
+    return Consumer2<CGMDashboardProvider, FoodProvider>(
+      builder: (context, dashboard, food, _) {
+        final all = dashboard.readings;
+        if (all.length < 2) return const SizedBox.shrink();
 
-        if (!s.hasReadings) return const SizedBox.shrink();
+        final snap = DaySnapshot.forDay(selectedDay, all);
 
-        final total = s.readings.length;
-        final aboveMin =
-            s.readings.where((r) => r.glucoseValue > 180).length * 5;
-        final inRangeMin =
-            s.readings
-                .where((r) => r.glucoseValue >= 70 && r.glucoseValue <= 180)
-                .length *
-            5;
+        final dayStart = DateTime(
+          selectedDay.year,
+          selectedDay.month,
+          selectedDay.day,
+        );
+        final dayEnd = dayStart.add(const Duration(days: 1));
+        final meals = food.foods
+            .where(
+              (f) =>
+                  !f.loggedAt.isBefore(dayStart) && f.loggedAt.isBefore(dayEnd),
+            )
+            .map((f) => f.loggedAt)
+            .toList();
 
-        final values = s.readings.map((r) => r.glucoseValue).toList();
-        final excursion = values.isEmpty
-            ? 0
-            : (values.reduce((a, b) => a > b ? a : b) -
-                      values.reduce((a, b) => a < b ? a : b))
-                  .round();
-
-        final gmi = 3.31 + 0.02392 * s.averageGlucose;
+        final interp = GlucoseMetrics.build(
+          now: DateTime.now(),
+          dayReadings: snap.readings,
+          allReadings: all,
+          dayMeals: meals,
+        );
 
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _MetricCard(
-              title: 'Time above range',
-              value: '$aboveMin',
-              unit: 'min',
-              badness: (aboveMin / 180).clamp(0.0, 1.0),
-            ),
-            const SizedBox(height: 14),
-            _MetricCard(
-              title: 'Time in range',
-              value: '$inRangeMin',
-              unit: 'min',
-              badness: (1 - (total == 0 ? 0.0 : inRangeMin / (total * 5)))
-                  .clamp(0.0, 1.0),
-            ),
-            const SizedBox(height: 14),
-            _MetricCard(
-              title: 'Time out of range',
-              value: '${s.timeOutOfRangePercent}',
-              unit: '%',
-              badness: (s.timeOutOfRangePercent / 50).clamp(0.0, 1.0),
-            ),
-            const SizedBox(height: 14),
-            _MetricCard(
-              title: 'Hyperglycemic events',
-              value: '${s.hyperEvents}',
-              unit: 'events',
-              badness: (s.hyperEvents / 5).clamp(0.0, 1.0),
-            ),
-            const SizedBox(height: 14),
-            _MetricCard(
-              title: 'Hypoglycemic events',
-              value: '${s.hypoEvents}',
-              unit: 'events',
-              badness: (s.hypoEvents / 3).clamp(0.0, 1.0),
-            ),
-            const SizedBox(height: 14),
-            _MetricCard(
-              title: 'Glucose Excursion',
-              value: '$excursion',
-              unit: 'mg/dL',
-              badness: ((excursion - 40) / 120).clamp(0.0, 1.0),
-            ),
-            const SizedBox(height: 14),
-            _MetricCard(
-              title: 'GMI',
-              value: gmi.toStringAsFixed(1),
-              unit: '%',
-              badness: ((gmi - 5.0) / 2.0).clamp(0.0, 1.0),
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const GmiScreen()),
+            const Text('Interpretation', style: _h2),
+            const SizedBox(height: 12),
+            if (interp.severeHypo) ...[
+              const _SevereHypoBanner(),
+              const SizedBox(height: 14),
+            ],
+            for (var i = 0; i < interp.metrics.length; i++) ...[
+              _MetricCard(
+                metric: interp.metrics[i],
+                onTap: interp.metrics[i].tappable
+                    ? () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const GmiScreen()),
+                      )
+                    : null,
               ),
-            ),
-            const SizedBox(height: 14),
-            _MetricCard(
-              title: 'Glucose Oscillation',
-              value: '${s.stdDev}',
-              unit: 'mg/dL',
-              badness: ((s.stdDev - 10) / 40).clamp(0.0, 1.0),
-            ),
+              if (i < interp.metrics.length - 1) const SizedBox(height: 14),
+            ],
           ],
         );
       },
@@ -698,33 +662,91 @@ class _MetricsSection extends StatelessWidget {
   }
 }
 
-class _MetricCard extends StatelessWidget {
-  const _MetricCard({
-    required this.title,
-    required this.value,
-    required this.unit,
-    required this.badness,
-    this.onTap,
-  });
-
-  final String title;
-  final String value;
-  final String unit;
-  final double badness; // 0 = optimal, 1 = elevated
-  final VoidCallback? onTap;
+class _SevereHypoBanner extends StatelessWidget {
+  const _SevereHypoBanner();
 
   @override
   Widget build(BuildContext context) {
-    final status = badness < 0.34
-        ? 'OPTIMAL'
-        : badness < 0.67
-        ? 'MODERATE'
-        : 'ELEVATED';
-    final statusColor = badness < 0.34
-        ? DashboardTheme.accent
-        : badness < 0.67
-        ? DashboardTheme.warn
-        : DashboardTheme.danger;
+    return Material(
+      color: DashboardTheme.dangerSoft,
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: const [
+            Icon(Icons.error_outline_rounded, color: DashboardTheme.danger),
+            SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Severe low detected',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: DashboardTheme.danger,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'A reading fell below 54 mg/dL. Treat hypoglycemia '
+                    'promptly and review your insulin/medication.',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      height: 1.35,
+                      color: DashboardTheme.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MetricCard extends StatelessWidget {
+  const _MetricCard({required this.metric, this.onTap});
+
+  final Metric metric;
+  final VoidCallback? onTap;
+
+  Color get _statusColor {
+    switch (metric.status) {
+      case MetricStatus.optimal:
+        return DashboardTheme.accent;
+      case MetricStatus.moderate:
+        return DashboardTheme.warn;
+      case MetricStatus.outOfRange:
+        return DashboardTheme.danger;
+      case MetricStatus.collecting:
+        return DashboardTheme.textMuted;
+    }
+  }
+
+  String get _statusLabel {
+    switch (metric.status) {
+      case MetricStatus.optimal:
+        return 'OPTIMAL';
+      case MetricStatus.moderate:
+        return 'MODERATE';
+      case MetricStatus.outOfRange:
+        return 'OUT OF RANGE';
+      case MetricStatus.collecting:
+        return 'COLLECTING DATA';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final collecting = metric.status == MetricStatus.collecting;
+    final color = _statusColor;
+    // Higher-is-better metrics (TIR) put "Optimal" on the right.
+    final leftLabel = metric.higherIsBetter ? 'Out of range' : 'Optimal';
+    final rightLabel = metric.higherIsBetter ? 'Optimal' : 'Out of range';
 
     return GestureDetector(
       onTap: onTap,
@@ -741,21 +763,37 @@ class _MetricCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: DashboardTheme.textPrimary,
-                        ),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              metric.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: DashboardTheme.textPrimary,
+                              ),
+                            ),
+                          ),
+                          if (metric.severe) ...[
+                            const SizedBox(width: 6),
+                            const Icon(
+                              Icons.warning_amber_rounded,
+                              color: DashboardTheme.danger,
+                              size: 18,
+                            ),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        status,
+                        _statusLabel,
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
-                          color: statusColor,
+                          color: color,
                           letterSpacing: 0.4,
                         ),
                       ),
@@ -767,7 +805,7 @@ class _MetricCard extends StatelessWidget {
                   textBaseline: TextBaseline.alphabetic,
                   children: [
                     Text(
-                      value,
+                      metric.value,
                       style: const TextStyle(
                         fontSize: 34,
                         fontWeight: FontWeight.w800,
@@ -776,46 +814,63 @@ class _MetricCard extends StatelessWidget {
                         letterSpacing: -1,
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      unit,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: DashboardTheme.textSecondary,
+                    if (!collecting) ...[
+                      const SizedBox(width: 4),
+                      Text(
+                        metric.unit,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: DashboardTheme.textSecondary,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ],
             ),
             const SizedBox(height: 14),
-            _SegmentedMeter(position: badness, dotColor: statusColor),
+            _StatusMeter(
+              position: metric.position,
+              higherIsBetter: metric.higherIsBetter,
+              statusColor: color,
+              disabled: collecting,
+            ),
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: const [
+              children: [
                 Text(
-                  'Optimal',
-                  style: TextStyle(
+                  leftLabel,
+                  style: const TextStyle(
                     fontSize: 12,
                     color: DashboardTheme.textMuted,
                   ),
                 ),
                 Text(
-                  'Elevated',
-                  style: TextStyle(
+                  rightLabel,
+                  style: const TextStyle(
                     fontSize: 12,
                     color: DashboardTheme.textMuted,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 14),
-            const Text(
-              'Your glucose levels have been stable today. Focus on balanced '
-              'meals and activity to help your body to balance glucose.',
-              style: TextStyle(
+            if (metric.detail != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                metric.detail!,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: DashboardTheme.textSecondary,
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Text(
+              metric.recommendation,
+              style: const TextStyle(
                 fontSize: 14,
                 height: 1.4,
                 color: DashboardTheme.textSecondary,
@@ -829,61 +884,100 @@ class _MetricCard extends StatelessWidget {
   }
 }
 
-class _SegmentedMeter extends StatelessWidget {
-  const _SegmentedMeter({required this.position, required this.dotColor});
+/// Three-zone status meter (green/amber/red) with a marker. For
+/// higher-is-better metrics the green zone is on the right. Painted on a
+/// canvas so it renders reliably.
+class _StatusMeter extends StatelessWidget {
+  const _StatusMeter({
+    required this.position,
+    required this.higherIsBetter,
+    required this.statusColor,
+    this.disabled = false,
+  });
 
-  final double position; // 0..1
-  final Color dotColor;
+  final double position;
+  final bool higherIsBetter;
+  final Color statusColor;
+  final bool disabled;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, c) {
-        final w = c.maxWidth;
-        return SizedBox(
-          height: 14,
-          child: Stack(
-            alignment: Alignment.centerLeft,
-            children: [
-              Row(
-                children: List.generate(4, (i) {
-                  final segCenter = (i + 0.5) / 4;
-                  final filled = segCenter <= position + 0.02;
-                  return Expanded(
-                    child: Container(
-                      margin: EdgeInsets.only(right: i == 3 ? 0 : 4),
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: filled
-                            ? DashboardTheme.textPrimary
-                            : DashboardTheme.track,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-                  );
-                }),
-              ),
-              Positioned(
-                left: (position.clamp(0.0, 1.0) * w) - 7,
-                child: Container(
-                  width: 14,
-                  height: 14,
-                  decoration: BoxDecoration(
-                    color: dotColor,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2.5),
-                    boxShadow: const [
-                      BoxShadow(color: Color(0x22000000), blurRadius: 4),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+    return SizedBox(
+      height: 16,
+      child: CustomPaint(
+        size: Size.infinite,
+        painter: _MeterPainter(
+          position: position.clamp(0.0, 1.0).toDouble(),
+          higherIsBetter: higherIsBetter,
+          marker: statusColor,
+          disabled: disabled,
+        ),
+      ),
     );
   }
+}
+
+class _MeterPainter extends CustomPainter {
+  _MeterPainter({
+    required this.position,
+    required this.higherIsBetter,
+    required this.marker,
+    required this.disabled,
+  });
+
+  final double position;
+  final bool higherIsBetter;
+  final Color marker;
+  final bool disabled;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const h = 6.0, gap = 4.0;
+    final y = size.height / 2;
+    final segW = (size.width - 2 * gap) / 3;
+
+    final colors = disabled
+        ? const [
+            DashboardTheme.track,
+            DashboardTheme.track,
+            DashboardTheme.track,
+          ]
+        : higherIsBetter
+        ? const [
+            DashboardTheme.danger,
+            DashboardTheme.warn,
+            DashboardTheme.accent,
+          ]
+        : const [
+            DashboardTheme.accent,
+            DashboardTheme.warn,
+            DashboardTheme.danger,
+          ];
+
+    for (var i = 0; i < 3; i++) {
+      final left = i * (segW + gap);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(left, y - h / 2, segW, h),
+          const Radius.circular(3),
+        ),
+        Paint()..color = colors[i].withValues(alpha: disabled ? 1 : 0.9),
+      );
+    }
+
+    if (!disabled) {
+      final cx = (position * size.width).clamp(8.0, size.width - 8);
+      canvas.drawCircle(Offset(cx, y), 8, Paint()..color = Colors.white);
+      canvas.drawCircle(Offset(cx, y), 6, Paint()..color = marker);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _MeterPainter old) =>
+      old.position != position ||
+      old.disabled != disabled ||
+      old.higherIsBetter != higherIsBetter ||
+      old.marker != marker;
 }
 
 // ---------------------------------------------------------------------------

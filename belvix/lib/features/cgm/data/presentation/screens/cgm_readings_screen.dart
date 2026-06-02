@@ -1,8 +1,14 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../../../app/constants/app_assets.dart';
 import '../../../../../core/widgets/app_surface.dart';
@@ -40,6 +46,90 @@ class _CgmReadingsScreenState extends State<CgmReadingsScreen> {
     });
 
     await _readingsFuture;
+  }
+
+  bool _exporting = false;
+
+  /// Escape a CSV field (wrap in quotes if it contains a comma/quote/newline).
+  String _csv(String s) {
+    if (s.contains(',') || s.contains('"') || s.contains('\n')) {
+      return '"${s.replaceAll('"', '""')}"';
+    }
+    return s;
+  }
+
+  /// Build a CSV of all readings and open the system share sheet
+  /// (WhatsApp, email, etc.).
+  Future<void> _exportCsv() async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    try {
+      final readings = await _readingsFuture;
+
+      if (readings.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No readings to export yet')),
+          );
+        }
+        return;
+      }
+
+      // Oldest → newest reads more naturally in a spreadsheet.
+      final sorted = [...readings]
+        ..sort((a, b) => a.readingAt.compareTo(b.readingAt));
+
+      final dateFmt = DateFormat('yyyy-MM-dd');
+      final timeFmt = DateFormat('HH:mm');
+
+      final buf = StringBuffer()
+        ..writeln('Date,Time,Glucose (mg/dL),Trend,Timestamp (ISO)');
+      for (final r in sorted) {
+        final local = r.readingAt.toLocal();
+        buf.writeln(
+          '${dateFmt.format(local)},'
+          '${timeFmt.format(local)},'
+          '${r.glucoseValue.round()},'
+          '${_csv(r.trend)},'
+          '${r.readingAt.toUtc().toIso8601String()}',
+        );
+      }
+
+      final stamp = DateFormat('yyyyMMdd_HHmm').format(DateTime.now());
+      final fileName = 'cgm_readings_$stamp.csv';
+      final csv = buf.toString();
+
+      // Web can't use dart:io / path_provider — share in-memory bytes there;
+      // write a temp file on mobile (more reliable for the share sheet).
+      final XFile xfile;
+      if (kIsWeb) {
+        xfile = XFile.fromData(
+          Uint8List.fromList(utf8.encode(csv)),
+          mimeType: 'text/csv',
+          name: fileName,
+        );
+      } else {
+        final dir = await getTemporaryDirectory();
+        final file = File('${dir.path}/$fileName');
+        await file.writeAsString(csv);
+        xfile = XFile(file.path, mimeType: 'text/csv', name: fileName);
+      }
+
+      await Share.shareXFiles(
+        [xfile],
+        subject: 'CGM Glucose Readings',
+        text: 'My CGM glucose readings (${sorted.length} entries).',
+      );
+    } catch (e) {
+      debugPrint('CSV export failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not export: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
   }
 
   /// Green when the reading sits in 70–180 mg/dL, alert colour otherwise.
@@ -99,6 +189,26 @@ class _CgmReadingsScreenState extends State<CgmReadingsScreen> {
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Export CSV',
+            onPressed: _exporting ? null : _exportCsv,
+            icon: _exporting
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: DashboardTheme.accent,
+                    ),
+                  )
+                : const Icon(
+                    Icons.ios_share_rounded,
+                    color: DashboardTheme.textPrimary,
+                  ),
+          ),
+          const SizedBox(width: 4),
+        ],
       ),
       body: RefreshIndicator(
         color: DashboardTheme.accent,
