@@ -93,34 +93,84 @@ class DaySnapshot {
   int get stdDev {
     if (readings.isEmpty) return 0;
 
-    final avg = averageGlucose;
+    // Use the unrounded mean (not the rounded averageGlucose) for accuracy.
+    final mean =
+        readings.fold<double>(0, (acc, r) => acc + r.glucoseValue) /
+        readings.length;
+
     final variance =
         readings.fold<double>(
           0,
-          (acc, r) => acc + math.pow(r.glucoseValue - avg, 2).toDouble(),
+          (acc, r) => acc + math.pow(r.glucoseValue - mean, 2).toDouble(),
         ) /
         readings.length;
 
     return math.sqrt(variance).round();
   }
 
-  /// Number of transitions from ≤180 → >180.
-  int get spikeCount {
-    var count = 0;
+  /// Typical gap between readings (median, ignoring large sensor gaps), used
+  /// to size single-reading spikes. Falls back to 5 min.
+  int get _intervalMinutes {
+    if (readings.length < 2) return 5;
+    final gaps = <int>[];
     for (var i = 1; i < readings.length; i++) {
-      if (readings[i - 1].glucoseValue <= 180 &&
-          readings[i].glucoseValue > 180) {
-        count++;
-      }
+      final g = readings[i].readingAt
+          .difference(readings[i - 1].readingAt)
+          .inMinutes;
+      if (g > 0 && g <= 30) gaps.add(g);
     }
-    return count;
+    if (gaps.isEmpty) return 5;
+    gaps.sort();
+    return gaps[gaps.length ~/ 2];
   }
 
+  /// Contiguous runs of readings above 180 mg/dL — a gap > 30 min splits a
+  /// run. Spike count + time are both derived from this so they stay in
+  /// sync (a run that starts above 180 is still counted).
+  List<List<CgmReadingModel>> get _spikeRuns {
+    final runs = <List<CgmReadingModel>>[];
+    List<CgmReadingModel>? current;
+    DateTime? prev;
+
+    for (final r in readings) {
+      final brokeGap =
+          prev != null && r.readingAt.difference(prev).inMinutes > 30;
+      if (r.glucoseValue > 180) {
+        if (current == null || brokeGap) {
+          current = <CgmReadingModel>[];
+          runs.add(current);
+        }
+        current.add(r);
+      } else {
+        current = null;
+      }
+      prev = r.readingAt;
+    }
+    return runs;
+  }
+
+  /// Number of distinct excursions above 180 mg/dL.
+  int get spikeCount => _spikeRuns.length;
+
+  /// Total time spent above 180 mg/dL, computed from real timestamps.
   String get spikeTime {
-    final highs = readings.where((r) => r.glucoseValue > 180).length;
-    final mins = highs * 5;
-    final h = mins ~/ 60;
-    final m = mins % 60;
+    final interval = _intervalMinutes;
+    var totalMin = 0;
+
+    for (var i = 0; i < readings.length; i++) {
+      if (readings[i].glucoseValue <= 180) continue;
+      if (i + 1 < readings.length) {
+        final gap = readings[i + 1].readingAt
+            .difference(readings[i].readingAt)
+            .inMinutes;
+        totalMin += (gap > 0 && gap <= 30) ? gap : interval;
+      } else {
+        totalMin += interval; // last reading still counts ~one interval
+      }
+    }
+
+    final h = totalMin ~/ 60;
+    final m = totalMin % 60;
     return h > 0 ? '${h}h ${m}m' : '${m}m';
   }
 
