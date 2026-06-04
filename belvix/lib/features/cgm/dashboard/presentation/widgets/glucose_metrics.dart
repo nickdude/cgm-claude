@@ -65,6 +65,7 @@ class GlucoseMetrics {
   /// for the excursion calculation.
   static Interpretation build({
     required DateTime now,
+    required DateTime selectedDay,
     required List<CgmReadingModel> dayReadings,
     required List<CgmReadingModel> allReadings,
     required List<DateTime> dayMeals,
@@ -74,8 +75,23 @@ class GlucoseMetrics {
     );
 
     final bands = _bandMinutes(dayReadings, interval);
-    final dayCoverage = bands.total / (24 * 60);
-    final daySufficient = dayCoverage >= 0.7 && dayReadings.length >= 2;
+
+    // Coverage is measured against the time that has actually *elapsed* on
+    // the selected day — for today that's midnight→now, not a full 24h.
+    // Otherwise today would always read "Collecting Data" until evening.
+    final dayStart = DateTime(
+      selectedDay.year,
+      selectedDay.month,
+      selectedDay.day,
+    );
+    final isToday =
+        dayStart == DateTime(now.year, now.month, now.day);
+    final elapsedMin = isToday
+        ? now.difference(dayStart).inMinutes.clamp(60, 24 * 60)
+        : 24 * 60;
+
+    final dayCoverage = bands.total / elapsedMin;
+    final daySufficient = dayReadings.length >= 6 && dayCoverage >= 0.7;
 
     final tir = bands.total == 0 ? 0.0 : bands.inRange / bands.total * 100;
     final tar = bands.total == 0 ? 0.0 : bands.above / bands.total * 100;

@@ -723,6 +723,7 @@ class _MetricsSection extends StatelessWidget {
 
         final interp = GlucoseMetrics.build(
           now: DateTime.now(),
+          selectedDay: selectedDay,
           dayReadings: snap.readings,
           allReadings: all,
           dayMeals: meals,
