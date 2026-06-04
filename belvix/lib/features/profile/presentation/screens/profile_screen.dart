@@ -11,6 +11,7 @@ import '../../../welcome/presentation/screens/welcome_screen.dart';
 
 import '../../../cgm/connect/presentation/providers/cgm_provider.dart';
 
+import '../../../cgm/connect/presentation/screens/cgm_scan_screen.dart';
 import '../../../cgm/connect/presentation/screens/device_management_screen.dart';
 import 'profile_setup_screen.dart';
 
@@ -251,11 +252,33 @@ class ProfileScreen extends StatelessWidget {
                       },
                     ),
                     const Divider(height: 1, color: Color(0xFFE9EEF5)),
-                    buildTile(
-                      icon: Icons.bluetooth_disabled_rounded,
-                      title: 'Disconnect CGM',
-                      subtitle: 'Safely unpair the current sensor',
-                      onTap: () => _confirmDisconnectCgm(context),
+                    // Connect vs Disconnect depends on the live session: a
+                    // manual disconnect leaves no device, so we offer Connect.
+                    Consumer<CGMProvider>(
+                      builder: (context, cgm, _) {
+                        final connected = cgm.activeDevice != null ||
+                            cgm.connectionStatus !=
+                                CGMConnectionStatus.disconnected;
+                        if (connected) {
+                          return buildTile(
+                            icon: Icons.bluetooth_disabled_rounded,
+                            title: 'Disconnect CGM',
+                            subtitle: 'Safely unpair the current sensor',
+                            onTap: () => _confirmDisconnectCgm(context),
+                          );
+                        }
+                        return buildTile(
+                          icon: Icons.bluetooth_searching_rounded,
+                          title: 'Connect CGM',
+                          subtitle: 'Pair a sensor to start monitoring',
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const CGMScanScreen(),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                     const Divider(height: 1, color: Color(0xFFE9EEF5)),
                     buildTile(

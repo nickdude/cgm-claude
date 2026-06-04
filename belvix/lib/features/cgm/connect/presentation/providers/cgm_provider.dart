@@ -226,6 +226,9 @@ class CGMProvider extends ChangeNotifier {
             .expired:
         return "Sensor Expired";
       case CGMConnectionStatus
+            .malfunction:
+        return "Sensor Malfunction";
+      case CGMConnectionStatus
             .failed:
         return "Connection Failed";
       case CGMConnectionStatus
@@ -258,6 +261,8 @@ class CGMProvider extends ChangeNotifier {
         return Colors.amber;
       case CGMConnectionStatus
             .expired:
+      case CGMConnectionStatus
+            .malfunction:
       case CGMConnectionStatus
             .failed:
       case CGMConnectionStatus

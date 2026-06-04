@@ -374,33 +374,127 @@ class _GaugeSection extends StatelessWidget {
         // Only show the sync card during the *initial* sync, before any
         // reading exists. Once readings arrive, the gauge takes over and
         // updates live with every new reading.
+        final Widget hero;
         if (isToday && cgm.syncProgress < 1 && !snapshot.hasReadings) {
-          return SyncProgressCard(
+          hero = SyncProgressCard(
             progress: cgm.syncProgress,
             status: cgm.connectionText,
             color: cgm.statusColor,
           );
+        } else {
+          final value = snapshot.glucose ?? 0;
+          final fill = ((value - 50) / 130).clamp(0.0, 1.0);
+          final t = snapshot.trend.toLowerCase();
+          final trend = t.contains('fall')
+              ? GaugeTrend.down
+              : t.contains('ris')
+              ? GaugeTrend.up
+              : GaugeTrend.stable;
+          hero = Center(
+            child: GlucoseGauge(
+              value: snapshot.glucose,
+              fillFraction: fill,
+              trend: trend,
+              timeInRange: snapshot.timeInRangePercent,
+            ),
+          );
         }
 
-        final value = snapshot.glucose ?? 0;
-        final fill = ((value - 50) / 130).clamp(0.0, 1.0);
+        // Surface a hardware fault prominently above the hero.
+        if (cgm.connectionStatus == CGMConnectionStatus.malfunction) {
+          return Column(
+            children: [
+              _SensorMalfunctionBanner(
+                message: cgm.lastError ??
+                    'Sensor malfunction detected. Please replace your '
+                        'CGM sensor.',
+              ),
+              const SizedBox(height: 16),
+              hero,
+            ],
+          );
+        }
 
-        final t = snapshot.trend.toLowerCase();
-        final trend = t.contains('fall')
-            ? GaugeTrend.down
-            : t.contains('ris')
-            ? GaugeTrend.up
-            : GaugeTrend.stable;
-
-        return Center(
-          child: GlucoseGauge(
-            value: snapshot.glucose,
-            fillFraction: fill,
-            trend: trend,
-            timeInRange: snapshot.timeInRangePercent,
-          ),
-        );
+        return hero;
       },
+    );
+  }
+}
+
+/// Prominent red banner shown on the dashboard when the SDK reports a
+/// sensor hardware fault (error 3003 "Device malfunction" / isErrorShow).
+class _SensorMalfunctionBanner extends StatelessWidget {
+  const _SensorMalfunctionBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: DashboardTheme.dangerSoft,
+      borderRadius: BorderRadius.circular(DashboardTheme.radiusLg),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: const [
+                Icon(Icons.error_rounded, color: DashboardTheme.danger),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Sensor malfunction',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: DashboardTheme.danger,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: const TextStyle(
+                fontSize: 13.5,
+                height: 1.4,
+                color: DashboardTheme.textPrimary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Material(
+                color: DashboardTheme.danger,
+                borderRadius: BorderRadius.circular(12),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const DeviceManagementScreen(),
+                    ),
+                  ),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    child: Text(
+                      'Replace sensor',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

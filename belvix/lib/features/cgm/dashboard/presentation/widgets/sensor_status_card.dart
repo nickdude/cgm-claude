@@ -65,6 +65,16 @@ class SensorStatusCard extends StatelessWidget {
   // contextual failed/retry/pair action for the current disconnected state.
   Widget _actionFor(BuildContext context, CGMProvider provider) {
     switch (provider.connectionStatus) {
+      case CGMConnectionStatus.malfunction:
+        return _ActionRow(
+          message: provider.lastError ??
+              "Sensor malfunction detected. Please replace your CGM sensor.",
+          buttonLabel: "Replace sensor",
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const CGMScanScreen()),
+          ),
+        );
       case CGMConnectionStatus.bluetoothOff:
         return _ActionRow(
           message: provider.lastError ?? "Turn on Bluetooth to reconnect.",

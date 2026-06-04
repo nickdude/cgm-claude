@@ -49,6 +49,12 @@ class CgmSessionManager {
 
   bool _autoReconnect = true;
 
+  /// True only after the user *manually* disconnects (Profile → Disconnect
+  /// CGM). While set, every inbound SDK event is ignored so the native layer
+  /// can't silently auto-reconnect; cleared on a user-initiated connect.
+  /// Distinct from [_autoReconnect] so unexpected drops still auto-recover.
+  bool _manuallyDisconnected = false;
+
   bool _attemptInFlight = false;
 
   Timer? _retryTimer;
@@ -172,6 +178,9 @@ class CgmSessionManager {
 
     _autoReconnect = true;
 
+    // User explicitly reconnected — re-enable normal monitoring.
+    _manuallyDisconnected = false;
+
     _retryAttempt = 0;
 
     _emit(
@@ -197,6 +206,8 @@ class CgmSessionManager {
   Future<void> disconnect() async {
     _autoReconnect = false;
 
+    _manuallyDisconnected = true;
+
     _retryTimer?.cancel();
 
     _retryTimer = null;
@@ -207,6 +218,11 @@ class CgmSessionManager {
 
     try {
       await CgmSdk.stopHeartbeat();
+    } catch (_) {}
+
+    // Stop the native scanner too so the SDK can't re-find + auto-reconnect.
+    try {
+      await CgmSdk.stopScan();
     } catch (_) {}
 
     try {
@@ -234,6 +250,8 @@ class CgmSessionManager {
     _retryAttempt = 0;
 
     _autoReconnect = true;
+
+    _manuallyDisconnected = false;
 
     await StorageService
         .setCgmAutoReconnect(true);
@@ -498,6 +516,17 @@ class CgmSessionManager {
   ) {
     final type = event["type"];
 
+    // After a manual disconnect, swallow everything the SDK emits (the
+    // native layer may keep scanning / auto-reconnecting) so the app never
+    // silently reconnects. Only keep the Bluetooth-adapter flag fresh for
+    // the UI — without triggering any reconnect. Cleared on user connect.
+    if (_manuallyDisconnected) {
+      if (type == "bluetoothStateChanged") {
+        _bluetoothEnabled = event["enabled"] == true;
+      }
+      return;
+    }
+
     switch (type) {
       case "bluetoothStateChanged":
         final enabled =
@@ -543,6 +572,15 @@ class CgmSessionManager {
         break;
 
       case "glucoseData":
+        // The SDK asks us to surface a sensor error on this batch.
+        if (event["isErrorShow"] == true) {
+          _emitMalfunction();
+          break;
+        }
+        // An abandoned batch with no error flag is a normal warmup/invalid
+        // window — discard it without resetting the staleness clock.
+        if (event["isAbandoned"] == true) break;
+
         // Only the arrival time matters here — the dashboard provider
         // owns the actual readings. Resets the staleness clock.
         _lastReadingAt = DateTime.now();
@@ -640,6 +678,20 @@ class CgmSessionManager {
             (event["error"]
                     as String?) ??
                 "SDK error";
+
+        final code = (event["errorCode"]
+                as num?)
+            ?.toInt();
+        final name = event["errorName"]
+            ?.toString();
+
+        // Device malfunction (3003 "deviceAbandoned") — a hardware fault
+        // that won't recover by retrying. Surface it even while active.
+        if (code == 3003 ||
+            name == "deviceAbandoned") {
+          _emitMalfunction();
+          break;
+        }
 
         if (_state.status !=
                 CGMConnectionStatus
@@ -894,5 +946,25 @@ class CgmSessionManager {
     if (!_controller.isClosed) {
       _controller.add(next);
     }
+  }
+
+  /// Surface a sensor hardware fault. Retrying won't help, so cancel any
+  /// pending reconnect and leave it to the user to replace the sensor.
+  void _emitMalfunction() {
+    _retryTimer?.cancel();
+
+    if (_state.status ==
+        CGMConnectionStatus.malfunction) {
+      return;
+    }
+
+    _emit(
+      _state.copyWith(
+        status: CGMConnectionStatus
+            .malfunction,
+        message:
+            "Sensor malfunction detected. Please replace your CGM sensor.",
+      ),
+    );
   }
 }

@@ -40,6 +40,11 @@ enum CGMConnectionStatus {
   /// Sensor past 15-day life.
   expired,
 
+  /// Sensor hardware fault / abandoned by the SDK (error 3003 "Device
+  /// malfunction" or a glucose batch flagged isErrorShow). User must
+  /// replace the sensor.
+  malfunction,
+
   /// Fatal error — user must act (re-pair, replace sensor, etc.).
   failed,
 }
