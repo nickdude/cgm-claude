@@ -7,7 +7,7 @@ class DioClient {
     BaseOptions(
       baseUrl:
           // "http://192.168.1.6:5001/api",
-          "https://cgm-app.duckdns.org/api",
+          "https://api.belvixdiagnosticindia.com/api",
 
       headers: {
         "Content-Type":

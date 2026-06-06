@@ -4,7 +4,7 @@ class AppAssets {
 
   // Brand
   static const appLogo =
-      "assets/logos/BIONIME_4X_LOGO_NoText_NoBG.png";
+      "assets/logos/app_icon@3x.png";
 
   static const appLogoSquare =
       "assets/logos/app_icon_1024.png";
