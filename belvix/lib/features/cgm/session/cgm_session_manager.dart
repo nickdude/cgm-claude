@@ -192,6 +192,9 @@ class CgmSessionManager {
             .searching,
         message: null,
         syncProgress: 0,
+        // Clear any step left over from a prior session so the connect
+        // checklist starts clean at "searching".
+        lastBindStep: null,
       ),
     );
 

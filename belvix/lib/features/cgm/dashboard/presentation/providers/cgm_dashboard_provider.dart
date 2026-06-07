@@ -59,6 +59,15 @@ class CGMDashboardProvider extends ChangeNotifier {
 
   StreamSubscription? _sdkSubscription;
 
+  /// Periodically re-fetches the backend so new readings appear without a
+  /// manual refresh. This is the only real-time path on platforms without the
+  /// native BLE SDK (e.g. web) and the safety net everywhere else — the live
+  /// `glucoseData` events make mobile updates instant, the 15s poll guarantees
+  /// the UI never sits on a stale snapshot while the screen is open.
+  Timer? _pollTimer;
+
+  static const _pollInterval = Duration(seconds: 15);
+
   final CgmReadingRepository _repository = CgmReadingRepository();
 
   /// Keys (`ts_value`) of readings already persisted to the backend or
@@ -70,6 +79,11 @@ class CGMDashboardProvider extends ChangeNotifier {
   /// SN of the device whose buffered history we've already pulled this
   /// connection. Reset on disconnect so the next connect re-syncs.
   String? _historySyncedForSn;
+
+  /// Last SN we saw connected — lets [onAppResumed] re-pull the sensor's
+  /// buffer for readings collected while the app was backgrounded, without
+  /// waiting for a fresh connection.
+  String? _lastKnownSn;
 
   bool _historySyncInFlight = false;
 
@@ -119,6 +133,18 @@ class CGMDashboardProvider extends ChangeNotifier {
     _attachSdkStream();
 
     _loadHistoryFromBackend();
+
+    _startBackendPolling();
+  }
+
+  /// Starts the periodic backend refresh. Idempotent.
+  void _startBackendPolling() {
+    _pollTimer?.cancel();
+
+    _pollTimer = Timer.periodic(
+      _pollInterval,
+      (_) => _mergeFromBackend(),
+    );
   }
 
   Future<void> _loadHistoryFromBackend() async {
@@ -176,6 +202,7 @@ class CGMDashboardProvider extends ChangeNotifier {
       case "deviceInfo":
         final sn = event["sn"]?.toString();
         if (sn != null && sn.isNotEmpty) {
+          _lastKnownSn = sn;
           _syncHistoryFromSdk(sn);
         }
         break;
@@ -546,6 +573,62 @@ class CGMDashboardProvider extends ChangeNotifier {
     await _loadHistoryFromBackend();
   }
 
+  /// Catch up on readings collected while the app was backgrounded.
+  ///
+  /// The sensor keeps buffering readings (the SDK heartbeat runs on an
+  /// AlarmManager wake-up), but the live `glucoseData` stream only reaches us
+  /// reliably while the app is foreground. Previously the sensor buffer was
+  /// re-pulled only on a fresh connection, so users had to fully restart the
+  /// app to see new readings. On resume we now (1) re-pull the sensor's buffer
+  /// and (2) merge anything new from the backend — both silent (no spinner,
+  /// merge-not-replace) so the visible readings never flicker or regress.
+  Future<void> onAppResumed() async {
+    final sn = _lastKnownSn;
+
+    if (sn != null && sn.isNotEmpty) {
+      // Allow a fresh backfill; getHistory is deduped by _syncedKeys, so
+      // re-pulling the whole buffer is cheap and idempotent.
+      _historySyncedForSn = null;
+      await _syncHistoryFromSdk(sn);
+    }
+
+    await _mergeFromBackend();
+  }
+
+  /// Silently folds any backend rows we don't already have into [readings]
+  /// (merge, not replace) so a refresh never drops not-yet-persisted live
+  /// readings or flashes a loading state. Only recomputes metrics + rebuilds
+  /// the UI when the merge actually changed something, so 15s polling doesn't
+  /// churn rebuilds or re-fire alerts for an unchanged latest reading.
+  Future<void> _mergeFromBackend() async {
+    try {
+      final fetched = await _repository.listReadings();
+
+      if (fetched.isEmpty) return;
+
+      final prevLen = readings.length;
+      final prevLast =
+          readings.isEmpty ? null : readings.last.readingAt;
+
+      for (final r in fetched) {
+        _syncedKeys.add(_keyOf(r));
+      }
+
+      _mergeReadings(fetched);
+
+      final changed = readings.length != prevLen ||
+          (readings.isNotEmpty && readings.last.readingAt != prevLast);
+
+      if (changed) {
+        _recomputeLatest();
+
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint("CGM backend merge failed: $e");
+    }
+  }
+
   bool _loadingOlder = false;
   bool _historyExhausted = false;
 
@@ -591,6 +674,10 @@ class CGMDashboardProvider extends ChangeNotifier {
     _sdkSubscription?.cancel();
 
     _sdkSubscription = null;
+
+    _pollTimer?.cancel();
+
+    _pollTimer = null;
   }
 
   @override

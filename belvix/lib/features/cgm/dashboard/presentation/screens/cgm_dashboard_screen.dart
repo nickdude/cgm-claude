@@ -40,7 +40,8 @@ class CGMDashboardScreen extends StatefulWidget {
   State<CGMDashboardScreen> createState() => _CGMDashboardScreenState();
 }
 
-class _CGMDashboardScreenState extends State<CGMDashboardScreen> {
+class _CGMDashboardScreenState extends State<CGMDashboardScreen>
+    with WidgetsBindingObserver {
   CGMDashboardProvider? _dashboardProvider;
 
   late DateTime _selectedDay;
@@ -50,6 +51,8 @@ class _CGMDashboardScreenState extends State<CGMDashboardScreen> {
   @override
   void initState() {
     super.initState();
+
+    WidgetsBinding.instance.addObserver(this);
 
     final now = DateTime.now();
     _selectedDay = DateTime(now.year, now.month, now.day);
@@ -80,7 +83,18 @@ class _CGMDashboardScreenState extends State<CGMDashboardScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Coming back to the foreground: catch up on any readings the sensor
+    // buffered while we were backgrounded, so the user never has to fully
+    // restart the app to see new readings/biomarkers.
+    if (state == AppLifecycleState.resumed) {
+      _dashboardProvider?.onAppResumed();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _dashboardProvider?.stopUpdates();
     super.dispose();
   }
