@@ -25,6 +25,21 @@ const RESET_PASSWORD_VIEW = path.join(
   "reset-password.html"
 );
 
+const VERIFY_EMAIL_VIEW = path.join(
+  __dirname,
+  "views",
+  "verify-email.html"
+);
+
+// Minimal HTML escaping for any value interpolated into a page template.
+const escapeHtml = (value) =>
+  String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
 export const register = async (
   req,
   res,
@@ -59,16 +74,63 @@ export const verifyEmail = async (
   res,
   next
 ) => {
+  // Browsers (clicking the email link) get a styled result page; API/JSON
+  // clients keep the original JSON contract. `["json", "html"]` makes generic
+  // `*/*` clients (curl, axios) resolve to JSON, while browsers — which send an
+  // explicit `text/html` — resolve to HTML.
+  const wantsHtml =
+    req.accepts(["json", "html"]) === "html";
+
   try {
     await verifyEmailService(req.params.token);
+
+    if (wantsHtml) {
+      return renderVerifyEmailPage(res, {
+        state: "success",
+      });
+    }
 
     return res.status(200).json({
       success: true,
       message: "Email verified successfully",
     });
   } catch (error) {
+    if (wantsHtml) {
+      return renderVerifyEmailPage(res, {
+        state: "error",
+        message:
+          error?.message ||
+          "This verification link is invalid or has expired.",
+        statusCode: 400,
+      });
+    }
+
     next(error);
   }
+};
+
+// Reads the verify-email template, injects the resolved state/message and
+// sends it. The verification itself is done by `verifyEmailService` above —
+// this only renders the outcome, so no business logic is duplicated.
+const renderVerifyEmailPage = async (
+  res,
+  { state, message = "", statusCode = 200 }
+) => {
+  const html = (
+    await readFile(VERIFY_EMAIL_VIEW, "utf-8")
+  )
+    .replaceAll("{{STATE}}", state)
+    .replaceAll(
+      "{{ERROR_MESSAGE}}",
+      escapeHtml(message)
+    );
+
+  res.set(
+    "Content-Type",
+    "text/html; charset=utf-8"
+  );
+
+  return res.status(statusCode).send(html);
 };
 
 export const login = async (
