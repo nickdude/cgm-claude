@@ -1,3 +1,7 @@
+import path from "path";
+import { fileURLToPath } from "url";
+import { readFile } from "fs/promises";
+
 import {
   registerValidation,
   loginValidation,
@@ -10,6 +14,16 @@ import {
   forgotPasswordService,
   resetPasswordService,
 } from "./auth.service.js";
+
+const __dirname = path.dirname(
+  fileURLToPath(import.meta.url)
+);
+
+const RESET_PASSWORD_VIEW = path.join(
+  __dirname,
+  "views",
+  "reset-password.html"
+);
 
 export const register = async (
   req,
@@ -119,4 +133,39 @@ export const resetPassword = async (req, res, next) => {
     } catch (error) {
       next(error);
     }
+};
+
+// Serves the self-contained reset-password HTML page when the user opens the
+// link from the email (a GET request). The page reads the token from the URL
+// and submits to the existing POST /api/auth/reset-password/:token endpoint —
+// the reset business logic is NOT duplicated here.
+export const resetPasswordPage = async (
+  req,
+  res,
+  next
+) => {
+  try {
+    const loginUrl =
+      process.env.CLIENT_URL ||
+      "https://belvixdiagnosticindia.com";
+
+    let html = await readFile(
+      RESET_PASSWORD_VIEW,
+      "utf-8"
+    );
+
+    html = html.replaceAll(
+      "{{LOGIN_URL}}",
+      loginUrl
+    );
+
+    res.set(
+      "Content-Type",
+      "text/html; charset=utf-8"
+    );
+
+    return res.status(200).send(html);
+  } catch (error) {
+    next(error);
+  }
 };

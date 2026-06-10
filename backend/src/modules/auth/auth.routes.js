@@ -6,6 +6,7 @@ import {
   login,
   forgotPassword,
   resetPassword,
+  resetPasswordPage,
 } from "./auth.controller.js";
 
 import {
@@ -28,6 +29,13 @@ router.post("/login", login);
 router.post(
   "/forgot-password",
   forgotPassword
+);
+
+// GET renders the password-reset web page (opened from the email link);
+// POST performs the actual reset. Same path, different methods.
+router.get(
+  "/reset-password/:token",
+  resetPasswordPage
 );
 
 router.post(
