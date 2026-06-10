@@ -15,6 +15,8 @@ import '../../../../insulin/presentation/providers/insulin_provider.dart';
 import '../../../../insulin/presentation/screens/insulin_screen.dart';
 import '../../../connect/presentation/providers/cgm_provider.dart';
 import '../../../connect/presentation/screens/device_management_screen.dart';
+import '../../../timeline/presentation/providers/timeline_provider.dart';
+import '../../../timeline/presentation/widgets/event_detail_sheet.dart';
 import '../providers/cgm_dashboard_provider.dart';
 import '../widgets/dashboard_theme.dart';
 import '../widgets/day_snapshot.dart';
@@ -549,13 +551,29 @@ class _ScoreSection extends StatelessWidget {
 // Chart
 // ---------------------------------------------------------------------------
 
-class _ChartSection extends StatelessWidget {
+class _ChartSection extends StatefulWidget {
   const _ChartSection({required this.selectedDay});
 
   final DateTime selectedDay;
 
   @override
+  State<_ChartSection> createState() => _ChartSectionState();
+}
+
+class _ChartSectionState extends State<_ChartSection> {
+  // Centre date of the chart's visible window; updated live as the user
+  // scrolls. Held here (not rebuilt) so only the card's label reacts.
+  final ValueNotifier<DateTime?> _centerDate = ValueNotifier(null);
+
+  @override
+  void dispose() {
+    _centerDate.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final selectedDay = widget.selectedDay;
     return Consumer<CGMDashboardProvider>(
       builder: (context, dashboard, _) {
         final now = DateTime.now();
@@ -574,13 +592,26 @@ class _ChartSection extends StatelessWidget {
           );
         }
 
+        // Reuse one TimelineProvider instance; the chart drives lazy loading
+        // via its visible-range callback (debounced) and the provider caches.
+        final timeline = context.watch<TimelineProvider>();
+
         return GlucoseChartCard(
+          visibleDate: _centerDate,
           // No key → the State (and its scroll window) persists across
           // rebuilds and day changes; new readings update it in place.
           chart: GlucoseTimelineChart(
             readings: dashboard.readings,
+            events: timeline.events,
             onAddAtTime: (time) => _showAddAtTime(context, time),
             onLoadOlder: dashboard.loadOlderReadings,
+            onVisibleRangeChanged: (from, to) {
+              // Lazily ensure events for whatever range is on screen. The
+              // provider pads, dedups and skips already-loaded ranges.
+              context.read<TimelineProvider>().ensureRange(from, to);
+            },
+            onCenterChanged: (center) => _centerDate.value = center,
+            onEventTap: (event) => showEventDetailSheet(context, event),
           ),
           showSpikeTag: snapshot.spikeCount > 0,
           avgGlucose: snapshot.averageGlucose,

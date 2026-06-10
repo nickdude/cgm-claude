@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 
 import '../../../data/models/cgm_reading_model.dart';
+import '../../../timeline/data/models/timeline_event.dart';
 import 'dashboard_theme.dart';
 
 /// The chart's time axis is built from each reading's **wall-clock fields**
@@ -37,13 +40,21 @@ class GlucoseTimelineChart extends StatefulWidget {
   const GlucoseTimelineChart({
     super.key,
     required this.readings,
+    this.events = const [],
     this.onAddAtTime,
     this.onLoadOlder,
+    this.onVisibleRangeChanged,
+    this.onCenterChanged,
+    this.onEventTap,
     this.initialWindow = const Duration(hours: 12),
   });
 
   /// All loaded readings (any order — sorted internally).
   final List<CgmReadingModel> readings;
+
+  /// Health events rendered as tappable badges in the lane below the curve,
+  /// positioned by their timestamp using the chart's own time→pixel mapping.
+  final List<TimelineEvent> events;
 
   /// Tapped "+" on a reading's tooltip → add an entry at that instant.
   final void Function(DateTime time)? onAddAtTime;
@@ -51,6 +62,19 @@ class GlucoseTimelineChart extends StatefulWidget {
   /// Called when the window approaches the oldest loaded reading so the host
   /// can fetch + prepend more history. Should be idempotent / de-duped.
   final VoidCallback? onLoadOlder;
+
+  /// Fired (debounced) with the currently-visible [from, to] time range so the
+  /// host can lazily load timeline events for what's on screen. Providing this
+  /// also enables the event lane. `from`/`to` are wall-clock instants.
+  final void Function(DateTime from, DateTime to)? onVisibleRangeChanged;
+
+  /// Fired (live, per scroll frame) with the date at the **centre** of the
+  /// visible window so the host can drive its own date header. When provided,
+  /// the chart suppresses its built-in painted header to avoid duplication.
+  final void Function(DateTime center)? onCenterChanged;
+
+  /// Tapped an event badge in the lane → host shows its detail sheet.
+  final void Function(TimelineEvent event)? onEventTap;
 
   final Duration initialWindow;
 
@@ -102,10 +126,29 @@ class _GlucoseTimelineChartState extends State<GlucoseTimelineChart> {
   bool _olderRequested = false;
   double? _oldestLoadedMs;
 
+  // --- Event lane state ---
+  static const double _laneHeight = 42;
+  static const double _laneMarker = 24;
+  static const double _clusterGap = 20; // px below which events are a cluster
+  static const double _spreadStep = 22; // horizontal fan within a cluster
+  static const double _staggerY = 7; // vertical stagger within a cluster
+
+  late List<TimelineEvent> _sortedEvents;
+  late List<double> _eventsMs;
+
+  bool get _laneEnabled => widget.onVisibleRangeChanged != null;
+  double get _laneH => _laneEnabled ? _laneHeight : 0;
+
+  // Debounced visible-range reporting for lazy loading.
+  Timer? _rangeDebounce;
+  String? _lastRangeKey;
+  bool _initReported = false;
+
   @override
   void initState() {
     super.initState();
     _ingest(initial: true);
+    _ingestEvents();
   }
 
   @override
@@ -114,6 +157,57 @@ class _GlucoseTimelineChartState extends State<GlucoseTimelineChart> {
     if (!identical(old.readings, widget.readings)) {
       _ingest(initial: false);
     }
+    if (!identical(old.events, widget.events)) {
+      _ingestEvents();
+    }
+  }
+
+  @override
+  void dispose() {
+    _rangeDebounce?.cancel();
+    super.dispose();
+  }
+
+  void _ingestEvents() {
+    _sortedEvents = List<TimelineEvent>.of(widget.events)
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    _eventsMs =
+        _sortedEvents.map((e) => _wallMs(e.timestamp)).toList(growable: false);
+  }
+
+  // --- visible-range reporting (drives lazy loading) ---
+
+  void _scheduleReportRange() {
+    if (!_laneEnabled) return;
+    _rangeDebounce?.cancel();
+    _rangeDebounce = Timer(
+      const Duration(milliseconds: 280),
+      _reportRangeNow,
+    );
+  }
+
+  void _reportRangeNow() {
+    if (!_laneEnabled || _winSpan <= 0 || _plotW <= 0) return;
+    final fromMs = _winEnd - _winSpan;
+    final toMs = _winEnd;
+    // Round to the minute so trivial sub-pixel scrolls don't re-fire.
+    final key = '${(fromMs / 60000).round()}_${(toMs / 60000).round()}';
+    if (key == _lastRangeKey) return;
+    _lastRangeKey = key;
+    widget.onVisibleRangeChanged!(
+      DateTime.fromMillisecondsSinceEpoch(fromMs.round(), isUtc: true),
+      DateTime.fromMillisecondsSinceEpoch(toMs.round(), isUtc: true),
+    );
+  }
+
+  /// Live (un-debounced) centre-date report so the host's date header tracks
+  /// the scroll smoothly.
+  void _reportCenter() {
+    if (widget.onCenterChanged == null || _winSpan <= 0) return;
+    final centerMs = _winEnd - _winSpan / 2;
+    widget.onCenterChanged!(
+      DateTime.fromMillisecondsSinceEpoch(centerMs.round(), isUtc: true),
+    );
   }
 
   void _ingest({required bool initial}) {
@@ -216,6 +310,8 @@ class _GlucoseTimelineChartState extends State<GlucoseTimelineChart> {
       _winEnd = _clampEnd(start + newSpan, newSpan);
     });
     _maybeLoadOlder();
+    _scheduleReportRange();
+    _reportCenter();
   }
 
   int? _indexAtX(double x) {
@@ -257,6 +353,16 @@ class _GlucoseTimelineChartState extends State<GlucoseTimelineChart> {
       builder: (context, c) {
         _plotW = c.maxWidth - _rightPad;
         _winEnd = _clampEnd(_winEnd, _winSpan);
+
+        // Report the initial visible range + centre once the window + width
+        // are known (so lazy loading + the date header start correct).
+        if (!_initReported && _winSpan > 0 && _plotW > 0) {
+          _initReported = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _reportRangeNow();
+            _reportCenter();
+          });
+        }
 
         return Stack(
           clipBehavior: Clip.none,
@@ -300,15 +406,81 @@ class _GlucoseTimelineChartState extends State<GlucoseTimelineChart> {
                   yMin: _yMin,
                   yMax: _yMax,
                   selectedIndex: _selectedIndex,
+                  bottomInset: _laneH,
+                  showHeader: widget.onCenterChanged == null,
                 ),
                 child: const SizedBox.expand(),
               ),
             ),
             ..._buildTooltip(c.maxHeight),
+            ..._buildEventLane(c.maxHeight),
           ],
         );
       },
     );
+  }
+
+  /// Event lane below the curve: SVG badges positioned by timestamp using the
+  /// same time→pixel mapping as the glucose line, so they pan/zoom in sync.
+  /// Near-coincident events are fanned horizontally + staggered vertically so
+  /// none overlap and every badge stays tappable.
+  List<Widget> _buildEventLane(double height) {
+    if (!_laneEnabled || _sortedEvents.isEmpty || _plotW <= 0) {
+      return const [];
+    }
+
+    final m = _laneMarker;
+    final laneCenterY = height - _laneH / 2;
+
+    // Visible events with their x (events sorted by time → x is monotonic).
+    final vis = <_PlacedEvent>[];
+    for (var i = 0; i < _sortedEvents.length; i++) {
+      final x = _xForMs(_eventsMs[i]);
+      if (x < -m || x > _plotW + m) continue;
+      vis.add(_PlacedEvent(_sortedEvents[i], x));
+    }
+    if (vis.isEmpty) return const [];
+
+    // Group into clusters by horizontal proximity.
+    final clusters = <List<_PlacedEvent>>[];
+    var cur = <_PlacedEvent>[vis.first];
+    for (var i = 1; i < vis.length; i++) {
+      if (vis[i].x - cur.last.x < _clusterGap) {
+        cur.add(vis[i]);
+      } else {
+        clusters.add(cur);
+        cur = [vis[i]];
+      }
+    }
+    clusters.add(cur);
+
+    final out = <Widget>[];
+    for (final cl in clusters) {
+      final n = cl.length;
+      final centerX = cl.map((c) => c.x).reduce((a, b) => a + b) / n;
+      for (var j = 0; j < n; j++) {
+        final px = n > 1
+            ? centerX + (j - (n - 1) / 2) * _spreadStep
+            : cl[j].x;
+        final py = n > 1
+            ? laneCenterY + (j.isEven ? -_staggerY : _staggerY)
+            : laneCenterY;
+
+        final event = cl[j].event;
+        out.add(
+          Positioned(
+            left: px - m / 2,
+            top: py - m / 2,
+            child: _LaneMarker(
+              event: event,
+              size: m,
+              onTap: () => widget.onEventTap?.call(event),
+            ),
+          ),
+        );
+      }
+    }
+    return out;
   }
 
   List<Widget> _buildTooltip(double height) {
@@ -353,6 +525,8 @@ class _TimelinePainter extends CustomPainter {
     required this.yMin,
     required this.yMax,
     required this.selectedIndex,
+    this.bottomInset = 0,
+    this.showHeader = true,
   });
 
   final List<CgmReadingModel> sorted;
@@ -362,6 +536,14 @@ class _TimelinePainter extends CustomPainter {
   final double yMin;
   final double yMax;
   final int? selectedIndex;
+
+  /// Extra space reserved at the bottom for the event lane, so the curve +
+  /// axis sit above it.
+  final double bottomInset;
+
+  /// Paint the built-in centre-date header. Suppressed when the host renders
+  /// its own date label (driven by `onCenterChanged`).
+  final bool showHeader;
 
   static const _rightPad = 34.0;
   static const _bottomPad = 22.0;
@@ -376,7 +558,7 @@ class _TimelinePainter extends CustomPainter {
       0,
       _topPad,
       size.width - _rightPad,
-      size.height - _bottomPad,
+      size.height - _bottomPad - bottomInset,
     );
 
     double dx(int i) => plot.left + (timesMs[i] - _winStart) / winSpan * plot.width;
@@ -404,7 +586,7 @@ class _TimelinePainter extends CustomPainter {
 
     _paintBandLabels(canvas, plot, dy);
     _paintAxis(canvas, plot, timeAt);
-    _paintRangeHeader(canvas, plot, timeAt);
+    if (showHeader) _paintRangeHeader(canvas, plot, timeAt);
     _paintTooltipGuide(canvas, plot, dx, dy);
   }
 
@@ -552,22 +734,14 @@ class _TimelinePainter extends CustomPainter {
     }
   }
 
-  /// Dynamic date range shown at the top, updating as the window scrolls.
+  /// Date header driven by the **centre** of the visible window, so it shows
+  /// the date the user is currently looking at and updates as they scroll.
   void _paintRangeHeader(Canvas canvas, Rect plot, double Function(double) timeAt) {
-    final start = DateTime.fromMillisecondsSinceEpoch(
-      timeAt(plot.left).round(),
+    final center = DateTime.fromMillisecondsSinceEpoch(
+      timeAt(plot.center.dx).round(),
       isUtc: true,
     );
-    final end = DateTime.fromMillisecondsSinceEpoch(
-      timeAt(plot.right).round(),
-      isUtc: true,
-    );
-    final sameDay =
-        start.year == end.year && start.month == end.month && start.day == end.day;
-    final label = sameDay
-        ? DateFormat('EEE, MMM d').format(start)
-        : '${DateFormat('MMM d').format(start)} – '
-              '${DateFormat('MMM d').format(end)}';
+    final label = DateFormat('EEE, d MMM yyyy').format(center);
     final tp = _text(label, DashboardTheme.textSecondary, FontWeight.w700, size: 12.5);
     tp.paint(canvas, Offset(plot.left, 4));
   }
@@ -628,7 +802,58 @@ class _TimelinePainter extends CustomPainter {
       old.selectedIndex != selectedIndex ||
       old.yMin != yMin ||
       old.yMax != yMax ||
+      old.bottomInset != bottomInset ||
+      old.showHeader != showHeader ||
       !identical(old.sorted, sorted);
+}
+
+/// A visible event paired with its resolved x-position in the lane.
+class _PlacedEvent {
+  const _PlacedEvent(this.event, this.x);
+  final TimelineEvent event;
+  final double x;
+}
+
+/// A single SVG event badge in the lane. White-circle SVG (carries its own
+/// ring + glyph) with a soft circular shadow for elevation; fully tappable.
+class _LaneMarker extends StatelessWidget {
+  const _LaneMarker({
+    required this.event,
+    required this.size,
+    required this.onTap,
+  });
+
+  final TimelineEvent event;
+  final double size;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF101418).withValues(alpha: 0.16),
+              blurRadius: 5,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: SvgPicture.asset(
+          event.asset,
+          width: size,
+          height: size,
+          fit: BoxFit.contain,
+        ),
+      ),
+    );
+  }
 }
 
 /// ScaleGestureRecognizer that yields single-finger VERTICAL drags to the

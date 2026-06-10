@@ -20,6 +20,8 @@ import fingerBloodRoutes from "../modules/fingerBlood/fingerBlood.routes.js";
 
 import uploadRoutes from "../modules/upload/upload.routes.js";
 
+import timelineRoutes from "../modules/timeline/timeline.routes.js";
+
 const router = express.Router();
 
 router.use("/auth", authRoutes);
@@ -53,6 +55,8 @@ router.use(
 );
 
 router.use("/upload", uploadRoutes);
+
+router.use("/timeline", timelineRoutes);
 
 router.get("/", (req, res) => {
   res.json({

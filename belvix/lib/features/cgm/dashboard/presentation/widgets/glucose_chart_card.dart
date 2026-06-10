@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import 'dashboard_stats_row.dart';
 import 'dashboard_theme.dart';
@@ -17,11 +19,17 @@ class GlucoseChartCard extends StatelessWidget {
     required this.stdDev,
     required this.spikeTime,
     required this.spikeCount,
+    this.visibleDate,
   });
 
   /// The chart widget to render (kept external so the container stays
   /// agnostic to the chart implementation).
   final Widget chart;
+
+  /// Date at the centre of the chart's visible window. When provided, a date
+  /// label is shown above the chart that updates live as the user scrolls.
+  /// Only the label rebuilds (not the chart) when this changes.
+  final ValueListenable<DateTime?>? visibleDate;
 
   /// Whether to show the floating black "Hyperglycemic event" tooltip.
   final bool showSpikeTag;
@@ -38,17 +46,39 @@ class GlucoseChartCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Date label driven by the chart's visible-window centre — updates
+        // live as the user scrolls across days.
+        if (visibleDate != null)
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 10),
+            child: ValueListenableBuilder<DateTime?>(
+              valueListenable: visibleDate!,
+              builder: (context, date, _) {
+                return Text(
+                  date == null
+                      ? ''
+                      : DateFormat('EEE, d MMM yyyy').format(date),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: DashboardTheme.textPrimary,
+                  ),
+                );
+              },
+            ),
+          ),
+
         // Full-bleed chart: break out of the list's horizontal padding
         // so the graph spans the entire screen width (no card).
         SizedBox(
-          height: 260,
+          height: 300,
           child: OverflowBox(
             minWidth: screenWidth,
             maxWidth: screenWidth,
             alignment: Alignment.center,
             child: SizedBox(
               width: screenWidth,
-              height: 260,
+              height: 300,
               child: chart,
             ),
           ),

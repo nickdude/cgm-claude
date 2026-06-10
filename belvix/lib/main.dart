@@ -14,6 +14,8 @@ import 'features/cgm/connect/presentation/providers/cgm_provider.dart';
 
 import 'features/cgm/dashboard/presentation/providers/cgm_dashboard_provider.dart';
 
+import 'features/cgm/timeline/presentation/providers/timeline_provider.dart';
+
 import 'features/cgm/sdk/cgm_sdk.dart';
 
 import 'features/cgm/session/cgm_session_manager.dart';
@@ -113,6 +115,10 @@ class _MyAppState extends State<MyApp>
         ChangeNotifierProvider(
           create: (_) =>
               CGMDashboardProvider(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) =>
+              TimelineProvider(),
         ),
         ChangeNotifierProvider(
           create:
