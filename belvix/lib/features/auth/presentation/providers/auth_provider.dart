@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../../../core/storage/storage_service.dart';
@@ -24,6 +26,25 @@ class AuthProvider extends ChangeNotifier {
   bool isLoading = false;
 
   UserModel? currentUser;
+
+  /// Last user-facing error message from an auth call (e.g. the backend's
+  /// "Email already exists"). Null when the most recent call had no error.
+  /// Screens read this after a failed call to surface a meaningful message.
+  String? errorMessage;
+
+  /// Pulls a human-readable message out of a thrown error. Prefers the
+  /// backend's `{ "success": false, "message": "..." }` body (surfaced by Dio
+  /// on a non-2xx response); falls back to [fallback] when none is present.
+  String _messageFromError(Object error, String fallback) {
+    if (error is DioException) {
+      final data = error.response?.data;
+      if (data is Map && data["message"] is String) {
+        final msg = (data["message"] as String).trim();
+        if (msg.isNotEmpty) return msg;
+      }
+    }
+    return fallback;
+  }
 
   final LoginUsecase loginUsecase = LoginUsecase(AuthRepositoryImpl());
 
@@ -145,6 +166,8 @@ class AuthProvider extends ChangeNotifier {
     try {
       isLoading = true;
 
+      errorMessage = null;
+
       notifyListeners();
 
       await registerUsecase.call(
@@ -161,6 +184,11 @@ class AuthProvider extends ChangeNotifier {
       return true;
     } catch (e) {
       isLoading = false;
+
+      errorMessage = _messageFromError(
+        e,
+        "Registration failed. Please try again.",
+      );
 
       notifyListeners();
 

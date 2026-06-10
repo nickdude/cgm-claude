@@ -24,6 +24,15 @@ class AuthTextField
   final void Function(String)?
       onSubmitted;
 
+  /// Fired on every keystroke. Used by callers to clear a field-level
+  /// validation error as soon as the user edits the field.
+  final void Function(String)?
+      onChanged;
+
+  /// Inline validation message shown beneath the field. When non-null the
+  /// field also switches to an error (red) border. Null = no error (default).
+  final String? errorText;
+
   const AuthTextField({
     super.key,
     required this.controller,
@@ -36,6 +45,8 @@ class AuthTextField
     this.textInputAction =
         TextInputAction.next,
     this.onSubmitted,
+    this.onChanged,
+    this.errorText,
   });
 
   @override
@@ -56,6 +67,9 @@ class _AuthTextFieldState
 
   @override
   Widget build(BuildContext context) {
+    final hasError =
+        widget.errorText != null;
+
     return Column(
       crossAxisAlignment:
           CrossAxisAlignment.start,
@@ -81,6 +95,8 @@ class _AuthTextFieldState
               widget.textInputAction,
           onSubmitted:
               widget.onSubmitted,
+          onChanged:
+              widget.onChanged,
           style: const TextStyle(
             fontSize: 15,
             color: AppColors
@@ -139,18 +155,43 @@ class _AuthTextFieldState
               horizontal: 16,
               vertical: 16,
             ),
-            border:
-                _buildBorder(),
+            border: _buildBorder(
+              color: hasError
+                  ? AppColors.danger
+                  : const Color(
+                      0xFFE6E8EC,
+                    ),
+            ),
             enabledBorder:
-                _buildBorder(),
+                _buildBorder(
+              color: hasError
+                  ? AppColors.danger
+                  : const Color(
+                      0xFFE6E8EC,
+                    ),
+            ),
             focusedBorder:
                 _buildBorder(
-              color: AppColors
-                  .primary,
+              color: hasError
+                  ? AppColors.danger
+                  : AppColors.primary,
               width: 1.4,
             ),
           ),
         ),
+        if (hasError) ...[
+          const SizedBox(height: 6),
+          Text(
+            widget.errorText!,
+            style: const TextStyle(
+              color:
+                  AppColors.danger,
+              fontSize: 12,
+              fontWeight:
+                  FontWeight.w500,
+            ),
+          ),
+        ],
       ],
     );
   }
