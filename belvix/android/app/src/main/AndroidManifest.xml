@@ -45,7 +45,7 @@
         android:name="android.permission.INTERNET" />
 
     <application
-        android:label="belvix"
+        android:label="Belvix"
         android:name=".BelvixApplication"
         android:icon="@mipmap/ic_launcher">
 

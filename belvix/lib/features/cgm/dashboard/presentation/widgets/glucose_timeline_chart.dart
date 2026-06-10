@@ -7,6 +7,23 @@ import 'package:intl/intl.dart' hide TextDirection;
 import '../../../data/models/cgm_reading_model.dart';
 import 'dashboard_theme.dart';
 
+/// The chart's time axis is built from each reading's **wall-clock fields**
+/// (the IST values the cards display) pinned to a fixed UTC basis, rather than
+/// the absolute instant. This keeps the axis identical to the cards and free of
+/// any device/browser-timezone conversion — reconstruct with `isUtc: true` and
+/// format without `toLocal()` to read the same IST wall-clock back out. It also
+/// normalises away the mixed live (local) / backend (UTC) instant conventions
+/// so points sit in consistent positions.
+double _wallMs(DateTime t) => DateTime.utc(
+  t.year,
+  t.month,
+  t.day,
+  t.hour,
+  t.minute,
+  t.second,
+  t.millisecond,
+).millisecondsSinceEpoch.toDouble();
+
 /// Continuous, timestamp-based glucose timeline.
 ///
 /// Unlike a per-day chart, this renders the *whole* loaded reading set on a
@@ -103,7 +120,7 @@ class _GlucoseTimelineChartState extends State<GlucoseTimelineChart> {
     _sorted = List<CgmReadingModel>.of(widget.readings)
       ..sort((a, b) => a.readingAt.compareTo(b.readingAt));
     _timesMs = _sorted
-        .map((r) => r.readingAt.millisecondsSinceEpoch.toDouble())
+        .map((r) => _wallMs(r.readingAt))
         .toList(growable: false);
 
     _computeDomain();
@@ -315,8 +332,11 @@ class _GlucoseTimelineChartState extends State<GlucoseTimelineChart> {
           translation: Offset(-0.5, above ? -1.0 : 0.0),
           child: _AddTooltip(
             valueText: '${r.glucoseValue.round()} mg/dL',
-            timeText: DateFormat('MMM d • h:mm a').format(time.toLocal()),
-            onAdd: () => widget.onAddAtTime?.call(time),
+            // Format the IST wall-clock directly (no toLocal) so the tooltip
+            // matches the cards and the axis.
+            timeText: DateFormat('MMM d • h:mm a').format(time),
+            // Log against the selected reading's actual time.
+            onAdd: () => widget.onAddAtTime?.call(r.readingAt),
           ),
         ),
       ),
@@ -520,7 +540,10 @@ class _TimelinePainter extends CustomPainter {
     for (var i = 0; i < count; i++) {
       final f = i / (count - 1);
       final sx = plot.left + plot.width * f;
-      final t = DateTime.fromMillisecondsSinceEpoch(timeAt(sx).round());
+      final t = DateTime.fromMillisecondsSinceEpoch(
+        timeAt(sx).round(),
+        isUtc: true,
+      );
       final label = fmt.format(t).toLowerCase();
       final tp = _text(label, DashboardTheme.textMuted, FontWeight.w500);
       var x = sx - tp.width / 2;
@@ -531,8 +554,14 @@ class _TimelinePainter extends CustomPainter {
 
   /// Dynamic date range shown at the top, updating as the window scrolls.
   void _paintRangeHeader(Canvas canvas, Rect plot, double Function(double) timeAt) {
-    final start = DateTime.fromMillisecondsSinceEpoch(timeAt(plot.left).round());
-    final end = DateTime.fromMillisecondsSinceEpoch(timeAt(plot.right).round());
+    final start = DateTime.fromMillisecondsSinceEpoch(
+      timeAt(plot.left).round(),
+      isUtc: true,
+    );
+    final end = DateTime.fromMillisecondsSinceEpoch(
+      timeAt(plot.right).round(),
+      isUtc: true,
+    );
     final sameDay =
         start.year == end.year && start.month == end.month && start.day == end.day;
     final label = sameDay

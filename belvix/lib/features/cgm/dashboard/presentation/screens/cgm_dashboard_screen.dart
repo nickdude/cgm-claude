@@ -1712,15 +1712,24 @@ class _NotificationsSheet extends StatelessWidget {
   const _NotificationsSheet();
 
   String _formatTime(DateTime at) {
-    final local = at.toLocal();
+    // Use the reading's wall-clock fields (IST) directly — no timezone
+    // conversion — so it matches the cards and the chart axis.
+    final wc = DateTime(
+      at.year,
+      at.month,
+      at.day,
+      at.hour,
+      at.minute,
+      at.second,
+    );
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final isToday =
-        !local.isBefore(today) &&
-        local.isBefore(today.add(const Duration(days: 1)));
+        !wc.isBefore(today) &&
+        wc.isBefore(today.add(const Duration(days: 1)));
     return isToday
-        ? DateFormat('h:mm a').format(local)
-        : DateFormat('MMM d, h:mm a').format(local);
+        ? DateFormat('h:mm a').format(wc)
+        : DateFormat('MMM d, h:mm a').format(wc);
   }
 
   @override

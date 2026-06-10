@@ -64,15 +64,18 @@ class _StatCell extends StatelessWidget {
     final color = alert ? DashboardTheme.danger : DashboardTheme.textPrimary;
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Flexible(
-              child: Text(
+        // Scale the value down to fit the cell width instead of clipping it,
+        // so long values (e.g. a multi-part "Spike Time") stay fully visible.
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
                 value,
-                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w800,
@@ -80,25 +83,26 @@ class _StatCell extends StatelessWidget {
                   height: 1.1,
                 ),
               ),
-            ),
-            if (unit != null) ...[
-              const SizedBox(width: 2),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 3),
-                child: Text(
-                  unit!,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: DashboardTheme.textSecondary,
+              if (unit != null) ...[
+                const SizedBox(width: 2),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Text(
+                    unit!,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: DashboardTheme.textSecondary,
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
         const SizedBox(height: 4),
         Text(
           label,
+          textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: 12,
             color: DashboardTheme.textSecondary,

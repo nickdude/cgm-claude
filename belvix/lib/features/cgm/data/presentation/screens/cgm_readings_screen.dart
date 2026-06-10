@@ -8,13 +8,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../../app/constants/app_assets.dart';
 import '../../../../../core/widgets/app_surface.dart';
+import '../../../dashboard/presentation/providers/cgm_dashboard_provider.dart';
 import '../../../dashboard/presentation/widgets/dashboard_theme.dart';
 import '../../models/cgm_reading_model.dart';
-import '../../repository/cgm_reading_repository_impl.dart';
 
 class CgmReadingsScreen extends StatefulWidget {
   const CgmReadingsScreen({super.key});
@@ -24,28 +25,10 @@ class CgmReadingsScreen extends StatefulWidget {
 }
 
 class _CgmReadingsScreenState extends State<CgmReadingsScreen> {
-  final CgmReadingRepository _repository = CgmReadingRepository();
-
-  late Future<List<CgmReadingModel>> _readingsFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _readingsFuture = _loadReadings();
-  }
-
-  Future<List<CgmReadingModel>> _loadReadings() async {
-    final readings = await _repository.listReadings();
-    readings.sort((a, b) => b.readingAt.compareTo(a.readingAt));
-    return readings;
-  }
-
-  Future<void> _refresh() async {
-    setState(() {
-      _readingsFuture = _loadReadings();
-    });
-
-    await _readingsFuture;
+  /// Newest-first copy of the shared provider's readings, for display + export.
+  List<CgmReadingModel> _newestFirst(CGMDashboardProvider provider) {
+    return [...provider.readings]
+      ..sort((a, b) => b.readingAt.compareTo(a.readingAt));
   }
 
   bool _exporting = false;
@@ -62,10 +45,12 @@ class _CgmReadingsScreenState extends State<CgmReadingsScreen> {
   /// (WhatsApp, email, etc.).
   Future<void> _exportCsv() async {
     if (_exporting) return;
+
+    // Snapshot the shared provider's readings before any await.
+    final readings = context.read<CGMDashboardProvider>().readings;
+
     setState(() => _exporting = true);
     try {
-      final readings = await _readingsFuture;
-
       if (readings.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -85,13 +70,22 @@ class _CgmReadingsScreenState extends State<CgmReadingsScreen> {
       final buf = StringBuffer()
         ..writeln('Date,Time,Glucose (mg/dL),Trend,Timestamp (ISO)');
       for (final r in sorted) {
-        final local = r.readingAt.toLocal();
+        // Use the reading's raw wall-clock fields (IST) — no timezone
+        // conversion — so the export matches what the app displays.
+        final wc = DateTime(
+          r.readingAt.year,
+          r.readingAt.month,
+          r.readingAt.day,
+          r.readingAt.hour,
+          r.readingAt.minute,
+          r.readingAt.second,
+        );
         buf.writeln(
-          '${dateFmt.format(local)},'
-          '${timeFmt.format(local)},'
+          '${dateFmt.format(wc)},'
+          '${timeFmt.format(wc)},'
           '${r.glucoseValue.round()},'
           '${_csv(r.trend)},'
-          '${r.readingAt.toUtc().toIso8601String()}',
+          '${r.readingAt.toIso8601String()}',
         );
       }
 
@@ -213,17 +207,17 @@ class _CgmReadingsScreenState extends State<CgmReadingsScreen> {
       body: RefreshIndicator(
         color: DashboardTheme.accent,
         backgroundColor: DashboardTheme.surface,
-        onRefresh: _refresh,
-        child: FutureBuilder<List<CgmReadingModel>>(
-          future: _readingsFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
+        onRefresh: () =>
+            context.read<CGMDashboardProvider>().refresh(),
+        child: Consumer<CGMDashboardProvider>(
+          builder: (context, provider, _) {
+            final readings = _newestFirst(provider);
+
+            if (provider.isLoadingHistory && readings.isEmpty) {
               return const Center(
                 child: CircularProgressIndicator(color: DashboardTheme.accent),
               );
             }
-
-            final readings = snapshot.data ?? const <CgmReadingModel>[];
 
             if (readings.isEmpty) {
               return ListView(

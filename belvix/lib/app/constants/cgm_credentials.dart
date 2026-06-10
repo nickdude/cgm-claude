@@ -9,14 +9,14 @@ class CgmCredentials {
   static const String appId =
       String.fromEnvironment(
     "CGM_APP_ID",
-    defaultValue: "642434",
+    defaultValue: "684654",
   );
 
   static const String appSecret =
       String.fromEnvironment(
     "CGM_APP_SECRET",
     defaultValue:
-        "wtrWYS8bnRTxssyNwbbwsyNYccpYlkP8",
+        "VxxWHQ8wKukhxX88gUDd1SqZhhtWEnHU",
   );
 
   static bool get isConfigured =>

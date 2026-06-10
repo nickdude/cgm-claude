@@ -10,7 +10,6 @@ import 'cgm_connecting_screen.dart';
 
 class CGMScanScreen extends StatefulWidget {
   const CGMScanScreen({super.key});
-
   @override
   State<CGMScanScreen> createState() => _CGMScanScreenState();
 }
