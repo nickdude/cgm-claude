@@ -41,11 +41,40 @@ class InsulinProvider extends ChangeNotifier {
     return true;
   }
 
-  Future<void> deleteInsulin(String id) async {
+  Future<bool> updateInsulin({
+    required String id,
+    required String insulinType,
+    required int dosage,
+    DateTime? loggedAt,
+  }) async {
+    final updated = await _repository.update(
+      id,
+      InsulinModel(
+        id: id,
+        insulinType: insulinType,
+        dosage: dosage,
+        loggedAt: loggedAt ?? DateTime.now(),
+      ),
+    );
+
+    if (updated == null) return false;
+
+    final index = insulins.indexWhere((i) => i.id == id);
+    if (index != -1) {
+      insulins[index] = updated;
+    } else {
+      insulins.insert(0, updated);
+    }
+    notifyListeners();
+    return true;
+  }
+
+  Future<bool> deleteInsulin(String id) async {
     final ok = await _repository.delete(id);
     if (ok) {
       insulins.removeWhere((i) => i.id == id);
       notifyListeners();
     }
+    return ok;
   }
 }

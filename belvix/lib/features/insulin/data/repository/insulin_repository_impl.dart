@@ -35,6 +35,20 @@ class InsulinRepository {
     }
   }
 
+  Future<InsulinModel?> update(String id, InsulinModel insulin) async {
+    try {
+      final res = await _datasource.update(id, insulin.toCreateJson());
+      final data = res.data?["data"];
+      if (data is Map<String, dynamic>) {
+        return InsulinModel.fromJson(data);
+      }
+      return null;
+    } catch (e) {
+      debugPrint("Insulin update failed: $e");
+      return null;
+    }
+  }
+
   Future<bool> delete(String id) async {
     try {
       await _datasource.delete(id);

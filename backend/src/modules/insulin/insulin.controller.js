@@ -1,6 +1,7 @@
 import {
   createInsulinService,
   getInsulinService,
+  updateInsulinService,
   deleteInsulinService,
 } from "./insulin.service.js";
 
@@ -41,6 +42,25 @@ export const getInsulin = async (
     next(error);
   }
 };
+
+export const updateInsulin =
+  async (req, res, next) => {
+    try {
+      const insulin =
+        await updateInsulinService(
+          req.user.id,
+          req.params.id,
+          req.body
+        );
+
+      return res.status(200).json({
+        success: true,
+        data: insulin,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
 
 export const deleteInsulin =
   async (req, res, next) => {

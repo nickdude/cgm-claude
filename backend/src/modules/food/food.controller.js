@@ -1,6 +1,7 @@
 import {
   createFoodService,
   getFoodsService,
+  updateFoodService,
   deleteFoodService,
 } from "./food.service.js";
 
@@ -38,6 +39,29 @@ export const getFoods = async (
     return res.status(200).json({
       success: true,
       data: foods,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateFood = async (
+  req,
+  res,
+  next
+) => {
+  try {
+    const food =
+      await updateFoodService(
+        req.user.id,
+        req.params.id,
+        req.body
+      );
+
+    return res.status(200).json({
+      success: true,
+      message: "Food updated",
+      data: food,
     });
   } catch (error) {
     next(error);

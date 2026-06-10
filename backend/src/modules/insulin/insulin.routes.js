@@ -5,6 +5,7 @@ import authMiddleware from "../../middleware/auth.middleware.js";
 import {
   createInsulin,
   getInsulin,
+  updateInsulin,
   deleteInsulin,
 } from "./insulin.controller.js";
 
@@ -20,6 +21,12 @@ router.get(
   "/list",
   authMiddleware,
   getInsulin
+);
+
+router.put(
+  "/:id",
+  authMiddleware,
+  updateInsulin
 );
 
 router.delete(

@@ -13,6 +13,10 @@ class InsulinRemoteDatasource {
     return await dio.post("/insulin/create", data: body);
   }
 
+  Future<Response> update(String id, Map<String, dynamic> body) async {
+    return await dio.put("/insulin/$id", data: body);
+  }
+
   Future<Response> delete(String id) async {
     return await dio.delete("/insulin/delete/$id");
   }

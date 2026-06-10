@@ -35,6 +35,20 @@ class ExerciseRepository {
     }
   }
 
+  Future<ExerciseModel?> update(String id, ExerciseModel exercise) async {
+    try {
+      final res = await _datasource.update(id, exercise.toCreateJson());
+      final data = res.data?["data"];
+      if (data is Map<String, dynamic>) {
+        return ExerciseModel.fromJson(data);
+      }
+      return null;
+    } catch (e) {
+      debugPrint("Exercise update failed: $e");
+      return null;
+    }
+  }
+
   Future<bool> delete(String id) async {
     try {
       await _datasource.delete(id);

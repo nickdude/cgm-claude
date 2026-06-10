@@ -5,6 +5,7 @@ import authMiddleware from "../../middleware/auth.middleware.js";
 import {
   createExercise,
   getExercise,
+  updateExercise,
   deleteExercise,
 } from "./exercise.controller.js";
 
@@ -20,6 +21,12 @@ router.get(
   "/list",
   authMiddleware,
   getExercise
+);
+
+router.put(
+  "/:id",
+  authMiddleware,
+  updateExercise
 );
 
 router.delete(

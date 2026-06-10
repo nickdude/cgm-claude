@@ -5,6 +5,7 @@ import authMiddleware from "../../middleware/auth.middleware.js";
 import {
   createFingerBlood,
   getFingerBlood,
+  updateFingerBlood,
   deleteFingerBlood,
 } from "./fingerBlood.controller.js";
 
@@ -20,6 +21,12 @@ router.get(
   "/list",
   authMiddleware,
   getFingerBlood
+);
+
+router.put(
+  "/:id",
+  authMiddleware,
+  updateFingerBlood
 );
 
 router.delete(

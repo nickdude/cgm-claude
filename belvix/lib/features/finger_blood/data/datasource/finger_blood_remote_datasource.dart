@@ -13,6 +13,10 @@ class FingerBloodRemoteDatasource {
     return await dio.post("/finger-blood/create", data: body);
   }
 
+  Future<Response> update(String id, Map<String, dynamic> body) async {
+    return await dio.put("/finger-blood/$id", data: body);
+  }
+
   Future<Response> delete(String id) async {
     return await dio.delete("/finger-blood/delete/$id");
   }

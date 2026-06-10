@@ -43,11 +43,42 @@ class ExerciseProvider extends ChangeNotifier {
     return true;
   }
 
-  Future<void> deleteExercise(String id) async {
+  Future<bool> updateExercise({
+    required String id,
+    required String title,
+    required int duration,
+    required int caloriesBurned,
+    DateTime? loggedAt,
+  }) async {
+    final updated = await _repository.update(
+      id,
+      ExerciseModel(
+        id: id,
+        title: title,
+        duration: duration,
+        caloriesBurned: caloriesBurned,
+        loggedAt: loggedAt ?? DateTime.now(),
+      ),
+    );
+
+    if (updated == null) return false;
+
+    final index = exercises.indexWhere((e) => e.id == id);
+    if (index != -1) {
+      exercises[index] = updated;
+    } else {
+      exercises.insert(0, updated);
+    }
+    notifyListeners();
+    return true;
+  }
+
+  Future<bool> deleteExercise(String id) async {
     final ok = await _repository.delete(id);
     if (ok) {
       exercises.removeWhere((e) => e.id == id);
       notifyListeners();
     }
+    return ok;
   }
 }

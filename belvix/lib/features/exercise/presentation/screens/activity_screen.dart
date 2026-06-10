@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/widgets/app_surface.dart';
+import '../../../../core/widgets/confirm_dialog.dart';
+import '../../../../core/widgets/edit_delete_menu.dart';
 import '../../../../core/widgets/empty_state.dart';
+import '../../data/models/exercise_model.dart';
 import '../providers/exercise_provider.dart';
 
 import '../widgets/add_exercise_bottomsheet.dart';
@@ -31,6 +34,47 @@ class _ActivityScreenState
               ExerciseProvider>()
           .fetchExercises();
     });
+  }
+
+  /// Opens the add/edit sheet. Pass [editing] to reuse the same form in
+  /// edit mode (pre-filled, saves via the update API).
+  void _openSheet({ExerciseModel? editing}) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(30),
+        ),
+      ),
+      builder: (_) => AddExerciseBottomSheet(editing: editing),
+    );
+  }
+
+  Future<void> _confirmDelete(ExerciseModel exercise) async {
+    final confirmed = await showConfirmDialog(
+      context,
+      title: "Delete exercise?",
+      message:
+          "\"${exercise.title}\" will be permanently removed. This can't be undone.",
+    );
+
+    if (!confirmed || !mounted) return;
+
+    final ok = await context
+        .read<ExerciseProvider>()
+        .deleteExercise(exercise.id);
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok ? "Exercise deleted" : "Couldn't delete. Try again.",
+        ),
+      ),
+    );
   }
 
   @override
@@ -124,6 +168,11 @@ class _ActivityScreenState
                 ),
 
                 Text(exercise.time),
+
+                EditDeleteMenu(
+                  onEdit: () => _openSheet(editing: exercise),
+                  onDelete: () => _confirmDelete(exercise),
+                ),
               ],
             ),
             ),
@@ -133,32 +182,7 @@ class _ActivityScreenState
 
       floatingActionButton:
           FloatingActionButton(
-        onPressed: () {
-          showModalBottomSheet(
-            context: context,
-
-            isScrollControlled:
-                true,
-
-            backgroundColor:
-                Colors.white,
-
-            shape:
-                const RoundedRectangleBorder(
-              borderRadius:
-                  BorderRadius.vertical(
-                top: Radius.circular(
-                  30,
-                ),
-              ),
-            ),
-
-            builder:
-                (_) =>
-                    const AddExerciseBottomSheet(),
-          );
-        },
-
+        onPressed: () => _openSheet(),
         child: const Icon(Icons.add),
       ),
     );

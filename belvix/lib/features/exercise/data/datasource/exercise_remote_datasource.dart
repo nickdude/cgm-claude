@@ -13,6 +13,10 @@ class ExerciseRemoteDatasource {
     return await dio.post("/exercise/create", data: body);
   }
 
+  Future<Response> update(String id, Map<String, dynamic> body) async {
+    return await dio.put("/exercise/$id", data: body);
+  }
+
   Future<Response> delete(String id) async {
     return await dio.delete("/exercise/delete/$id");
   }

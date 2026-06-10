@@ -35,6 +35,20 @@ class FoodRepository {
     }
   }
 
+  Future<FoodModel?> update(String id, FoodModel food) async {
+    try {
+      final res = await _datasource.update(id, food.toCreateJson());
+      final data = res.data?["data"];
+      if (data is Map<String, dynamic>) {
+        return FoodModel.fromJson(data);
+      }
+      return null;
+    } catch (e) {
+      debugPrint("Food update failed: $e");
+      return null;
+    }
+  }
+
   Future<bool> delete(String id) async {
     try {
       await _datasource.delete(id);

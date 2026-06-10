@@ -1,6 +1,7 @@
 import {
   createFingerBloodService,
   getFingerBloodService,
+  updateFingerBloodService,
   deleteFingerBloodService,
 } from "./fingerBlood.service.js";
 
@@ -28,6 +29,25 @@ export const getFingerBlood =
       const data =
         await getFingerBloodService(
           req.user.id
+        );
+
+      return res.status(200).json({
+        success: true,
+        data,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+export const updateFingerBlood =
+  async (req, res, next) => {
+    try {
+      const data =
+        await updateFingerBloodService(
+          req.user.id,
+          req.params.id,
+          req.body
         );
 
       return res.status(200).json({

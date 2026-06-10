@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/widgets/app_surface.dart';
+import '../../../../core/widgets/confirm_dialog.dart';
+import '../../../../core/widgets/edit_delete_menu.dart';
 import '../../../../core/widgets/empty_state.dart';
+import '../../data/models/food_model.dart';
 import '../providers/food_provider.dart';
 
 import '../widgets/add_food_bottomsheet.dart';
@@ -30,6 +33,45 @@ class _FoodScreenState
           .read<FoodProvider>()
           .fetchFoods();
     });
+  }
+
+  /// Opens the add/edit sheet. Pass [editing] to reuse the same form in
+  /// edit mode (pre-filled, saves via the update API).
+  void _openSheet({FoodModel? editing}) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(30),
+        ),
+      ),
+      builder: (_) => AddFoodBottomSheet(editing: editing),
+    );
+  }
+
+  Future<void> _confirmDelete(FoodModel food) async {
+    final confirmed = await showConfirmDialog(
+      context,
+      title: "Delete food?",
+      message:
+          "\"${food.title}\" will be permanently removed. This can't be undone.",
+    );
+
+    if (!confirmed || !mounted) return;
+
+    final ok = await context.read<FoodProvider>().deleteFood(food.id);
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok ? "Food deleted" : "Couldn't delete. Try again.",
+        ),
+      ),
+    );
   }
 
   @override
@@ -121,6 +163,11 @@ class _FoodScreenState
                 ),
 
                 Text(food.time),
+
+                EditDeleteMenu(
+                  onEdit: () => _openSheet(editing: food),
+                  onDelete: () => _confirmDelete(food),
+                ),
               ],
             ),
             ),
@@ -130,32 +177,7 @@ class _FoodScreenState
 
       floatingActionButton:
           FloatingActionButton(
-        onPressed: () {
-          showModalBottomSheet(
-            context: context,
-
-            isScrollControlled:
-                true,
-
-            backgroundColor:
-                Colors.white,
-
-            shape:
-                const RoundedRectangleBorder(
-              borderRadius:
-                  BorderRadius.vertical(
-                top: Radius.circular(
-                  30,
-                ),
-              ),
-            ),
-
-            builder:
-                (_) =>
-                    const AddFoodBottomSheet(),
-          );
-        },
-
+        onPressed: () => _openSheet(),
         child: const Icon(Icons.add),
       ),
     );

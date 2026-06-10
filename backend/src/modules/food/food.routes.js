@@ -5,6 +5,7 @@ import authMiddleware from "../../middleware/auth.middleware.js";
 import {
   createFood,
   getFoods,
+  updateFood,
   deleteFood,
 } from "./food.controller.js";
 
@@ -20,6 +21,12 @@ router.get(
   "/list",
   authMiddleware,
   getFoods
+);
+
+router.put(
+  "/:id",
+  authMiddleware,
+  updateFood
 );
 
 router.delete(

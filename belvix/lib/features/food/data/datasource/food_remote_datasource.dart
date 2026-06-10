@@ -13,6 +13,10 @@ class FoodRemoteDatasource {
     return await dio.post("/food/create", data: body);
   }
 
+  Future<Response> update(String id, Map<String, dynamic> body) async {
+    return await dio.put("/food/$id", data: body);
+  }
+
   Future<Response> delete(String id) async {
     return await dio.delete("/food/delete/$id");
   }

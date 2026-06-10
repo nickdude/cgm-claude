@@ -41,11 +41,40 @@ class FingerBloodProvider extends ChangeNotifier {
     return true;
   }
 
-  Future<void> deleteFingerBlood(String id) async {
+  Future<bool> updateFingerBlood({
+    required String id,
+    required int glucoseValue,
+    required String notes,
+    DateTime? loggedAt,
+  }) async {
+    final updated = await _repository.update(
+      id,
+      FingerBloodModel(
+        id: id,
+        glucoseValue: glucoseValue,
+        notes: notes,
+        loggedAt: loggedAt ?? DateTime.now(),
+      ),
+    );
+
+    if (updated == null) return false;
+
+    final index = fingerBloods.indexWhere((f) => f.id == id);
+    if (index != -1) {
+      fingerBloods[index] = updated;
+    } else {
+      fingerBloods.insert(0, updated);
+    }
+    notifyListeners();
+    return true;
+  }
+
+  Future<bool> deleteFingerBlood(String id) async {
     final ok = await _repository.delete(id);
     if (ok) {
       fingerBloods.removeWhere((f) => f.id == id);
       notifyListeners();
     }
+    return ok;
   }
 }

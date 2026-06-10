@@ -36,6 +36,20 @@ class FingerBloodRepository {
     }
   }
 
+  Future<FingerBloodModel?> update(String id, FingerBloodModel reading) async {
+    try {
+      final res = await _datasource.update(id, reading.toCreateJson());
+      final data = res.data?["data"];
+      if (data is Map<String, dynamic>) {
+        return FingerBloodModel.fromJson(data);
+      }
+      return null;
+    } catch (e) {
+      debugPrint("FingerBlood update failed: $e");
+      return null;
+    }
+  }
+
   Future<bool> delete(String id) async {
     try {
       await _datasource.delete(id);

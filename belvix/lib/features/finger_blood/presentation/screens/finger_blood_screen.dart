@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/widgets/app_surface.dart';
+import '../../../../core/widgets/confirm_dialog.dart';
+import '../../../../core/widgets/edit_delete_menu.dart';
 import '../../../../core/widgets/empty_state.dart';
+import '../../data/models/finger_blood_model.dart';
 import '../providers/finger_blood_provider.dart';
 
 class FingerBloodScreen
@@ -30,6 +33,40 @@ class _FingerBloodScreenState
               FingerBloodProvider>()
           .fetchFingerBloods();
     });
+  }
+
+  /// Opens the add/edit dialog. Pass [editing] to reuse the same form in
+  /// edit mode (pre-filled, saves via the update API).
+  void _openDialog({FingerBloodModel? editing}) {
+    showDialog(
+      context: context,
+      builder: (_) => AddFingerBloodDialog(editing: editing),
+    );
+  }
+
+  Future<void> _confirmDelete(FingerBloodModel item) async {
+    final confirmed = await showConfirmDialog(
+      context,
+      title: "Delete reading?",
+      message:
+          "This ${item.glucoseValue} mg/dL reading will be permanently removed. This can't be undone.",
+    );
+
+    if (!confirmed || !mounted) return;
+
+    final ok = await context
+        .read<FingerBloodProvider>()
+        .deleteFingerBlood(item.id);
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok ? "Reading deleted" : "Couldn't delete. Try again.",
+        ),
+      ),
+    );
   }
 
   @override
@@ -127,6 +164,11 @@ class _FingerBloodScreenState
                 ),
 
                 Text(item.time),
+
+                EditDeleteMenu(
+                  onEdit: () => _openDialog(editing: item),
+                  onDelete: () => _confirmDelete(item),
+                ),
               ],
             ),
             ),
@@ -136,16 +178,7 @@ class _FingerBloodScreenState
 
       floatingActionButton:
           FloatingActionButton(
-        onPressed: () {
-          showDialog(
-            context: context,
-
-            builder:
-                (_) =>
-                    const AddFingerBloodDialog(),
-          );
-        },
-
+        onPressed: () => _openDialog(),
         child: const Icon(Icons.add),
       ),
     );
@@ -157,10 +190,15 @@ class AddFingerBloodDialog
   const AddFingerBloodDialog({
     super.key,
     this.initialTime,
+    this.editing,
   });
 
   /// When set, the entry is logged at this instant instead of "now".
   final DateTime? initialTime;
+
+  /// When set, the dialog opens in edit mode pre-filled with this record and
+  /// saves via the update API instead of create.
+  final FingerBloodModel? editing;
 
   @override
   State<AddFingerBloodDialog>
@@ -176,40 +214,99 @@ class _AddFingerBloodDialogState
   final notesController =
       TextEditingController();
 
+  bool _saving = false;
+
+  bool get _isEditing => widget.editing != null;
+
+  @override
+  void initState() {
+    super.initState();
+
+    final editing = widget.editing;
+    if (editing != null) {
+      glucoseController.text = editing.glucoseValue.toString();
+      notesController.text = editing.notes;
+    }
+  }
+
+  @override
+  void dispose() {
+    glucoseController.dispose();
+    notesController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_saving) return;
+
+    final glucose = int.tryParse(glucoseController.text.trim());
+    if (glucose == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please enter a glucose value")),
+      );
+      return;
+    }
+
+    setState(() => _saving = true);
+
+    final provider = context.read<FingerBloodProvider>();
+
+    final ok = _isEditing
+        ? await provider.updateFingerBlood(
+            id: widget.editing!.id,
+            glucoseValue: glucose,
+            notes: notesController.text.trim(),
+            loggedAt: widget.editing!.loggedAt,
+          )
+        : await provider.addFingerBlood(
+            glucoseValue: glucose,
+            notes: notesController.text.trim(),
+            loggedAt: widget.initialTime,
+          );
+
+    if (!mounted) return;
+
+    if (ok) {
+      Navigator.pop(context);
+    } else {
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _isEditing
+                ? "Couldn't update reading. Try again."
+                : "Couldn't save reading. Try again.",
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text(
-        "Add Glucose Meter Reading",
+      title: Text(
+        _isEditing
+            ? "Edit Glucose Meter Reading"
+            : "Add Glucose Meter Reading",
       ),
 
       content: Column(
-        mainAxisSize:
-            MainAxisSize.min,
-
+        mainAxisSize: MainAxisSize.min,
         children: [
           TextField(
-            controller:
-                glucoseController,
-
-            keyboardType:
-                TextInputType.number,
-
-            decoration:
-                const InputDecoration(
-              hintText:
-                  "Glucose Value",
+            controller: glucoseController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              hintText: "Glucose Value",
             ),
           ),
 
           const SizedBox(height: 20),
 
           TextField(
-            controller:
-                notesController,
-
-            decoration:
-                const InputDecoration(
+            controller: notesController,
+            decoration: const InputDecoration(
               hintText: "Notes",
             ),
           ),
@@ -218,42 +315,16 @@ class _AddFingerBloodDialogState
 
       actions: [
         TextButton(
-          onPressed: () {
-            Navigator.pop(context);
-          },
-
-          child: const Text(
-            "Cancel",
-          ),
+          onPressed: _saving ? null : () => Navigator.pop(context),
+          child: const Text("Cancel"),
         ),
 
         ElevatedButton(
-          onPressed: () async {
-            await context
-                .read<
-                    FingerBloodProvider>()
-                .addFingerBlood(
-                  glucoseValue:
-                      int.parse(
-                    glucoseController
-                        .text,
-                  ),
-
-                  notes:
-                      notesController
-                          .text,
-
-                  loggedAt: widget
-                      .initialTime,
-                );
-
-            Navigator.pop(
-              context,
-            );
-          },
-
-          child: const Text(
-            "Save",
+          onPressed: _saving ? null : _submit,
+          child: Text(
+            _saving
+                ? "Saving…"
+                : (_isEditing ? "Update" : "Save"),
           ),
         ),
       ],
