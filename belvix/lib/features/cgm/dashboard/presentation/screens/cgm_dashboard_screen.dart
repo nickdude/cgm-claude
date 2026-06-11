@@ -15,6 +15,7 @@ import '../../../../insulin/presentation/providers/insulin_provider.dart';
 import '../../../../insulin/presentation/screens/insulin_screen.dart';
 import '../../../connect/presentation/providers/cgm_provider.dart';
 import '../../../connect/presentation/screens/device_management_screen.dart';
+import '../../../timeline/data/models/timeline_event.dart';
 import '../../../timeline/presentation/providers/timeline_provider.dart';
 import '../../../timeline/presentation/widgets/event_detail_sheet.dart';
 import '../providers/cgm_dashboard_provider.dart';
@@ -592,9 +593,23 @@ class _ChartSectionState extends State<_ChartSection> {
           );
         }
 
-        // Reuse one TimelineProvider instance; the chart drives lazy loading
-        // via its visible-range callback (debounced) and the provider caches.
+        // Event lane sources: the already-loaded per-feature providers (works
+        // immediately, no backend dependency) merged with the timeline API
+        // (scalable lazy loading once deployed). Same record ids → de-duped.
         final timeline = context.watch<TimelineProvider>();
+        final byId = <String, TimelineEvent>{
+          for (final f in context.watch<FoodProvider>().foods)
+            f.id: TimelineEvent.fromFood(f),
+          for (final e in context.watch<ExerciseProvider>().exercises)
+            e.id: TimelineEvent.fromExercise(e),
+          for (final i in context.watch<InsulinProvider>().insulins)
+            i.id: TimelineEvent.fromInsulin(i),
+          for (final b in context.watch<FingerBloodProvider>().fingerBloods)
+            b.id: TimelineEvent.fromFingerBlood(b),
+          for (final ev in timeline.events) ev.id: ev,
+        };
+        final events = byId.values.toList()
+          ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
         return GlucoseChartCard(
           visibleDate: _centerDate,
@@ -602,7 +617,7 @@ class _ChartSectionState extends State<_ChartSection> {
           // rebuilds and day changes; new readings update it in place.
           chart: GlucoseTimelineChart(
             readings: dashboard.readings,
-            events: timeline.events,
+            events: events,
             onAddAtTime: (time) => _showAddAtTime(context, time),
             onLoadOlder: dashboard.loadOlderReadings,
             onVisibleRangeChanged: (from, to) {

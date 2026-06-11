@@ -71,14 +71,14 @@ class GlucoseChartCard extends StatelessWidget {
         // Full-bleed chart: break out of the list's horizontal padding
         // so the graph spans the entire screen width (no card).
         SizedBox(
-          height: 300,
+          height: 260,
           child: OverflowBox(
             minWidth: screenWidth,
             maxWidth: screenWidth,
             alignment: Alignment.center,
             child: SizedBox(
               width: screenWidth,
-              height: 300,
+              height: 260,
               child: chart,
             ),
           ),

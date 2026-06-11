@@ -1,3 +1,8 @@
+import '../../../../exercise/data/models/exercise_model.dart';
+import '../../../../finger_blood/data/models/finger_blood_model.dart';
+import '../../../../food/data/models/food_model.dart';
+import '../../../../insulin/data/models/insulin_model.dart';
+
 /// The kinds of health events that share the unified timeline.
 enum TimelineEventType { food, insulin, exercise, fingerBlood, unknown }
 
@@ -105,4 +110,61 @@ class TimelineEvent {
     if (v == null) return '';
     return v.toString();
   }
+
+  // --- Adapters from the per-feature models already loaded in the app, so the
+  // event lane works from local data without depending on the timeline API.
+  // Same id + metadata keys as the backend, so the two sources de-dupe cleanly.
+
+  factory TimelineEvent.fromFood(FoodModel f) => TimelineEvent(
+        id: f.id,
+        type: TimelineEventType.food,
+        timestamp: f.loggedAt.toLocal(),
+        title: f.title.isNotEmpty ? f.title : 'Food',
+        subtitle: '${f.calories} cal',
+        metadata: {
+          'title': f.title,
+          'calories': f.calories,
+          'carbs': f.carbs,
+          'protein': f.protein,
+          'fat': f.fat,
+          'fiber': f.fiber,
+        },
+      );
+
+  factory TimelineEvent.fromExercise(ExerciseModel e) => TimelineEvent(
+        id: e.id,
+        type: TimelineEventType.exercise,
+        timestamp: e.loggedAt.toLocal(),
+        title: e.title.isNotEmpty ? e.title : 'Exercise',
+        subtitle: '${e.duration} min',
+        metadata: {
+          'activity': e.title,
+          'duration': e.duration,
+          'caloriesBurned': e.caloriesBurned,
+        },
+      );
+
+  factory TimelineEvent.fromInsulin(InsulinModel i) => TimelineEvent(
+        id: i.id,
+        type: TimelineEventType.insulin,
+        timestamp: i.loggedAt.toLocal(),
+        title: 'Insulin',
+        subtitle: '${i.dosage} units',
+        metadata: {
+          'insulinType': i.insulinType,
+          'dosage': i.dosage,
+        },
+      );
+
+  factory TimelineEvent.fromFingerBlood(FingerBloodModel f) => TimelineEvent(
+        id: f.id,
+        type: TimelineEventType.fingerBlood,
+        timestamp: f.loggedAt.toLocal(),
+        title: 'Finger Blood',
+        subtitle: '${f.glucoseValue} mg/dL',
+        metadata: {
+          'glucoseValue': f.glucoseValue,
+          'notes': f.notes,
+        },
+      );
 }

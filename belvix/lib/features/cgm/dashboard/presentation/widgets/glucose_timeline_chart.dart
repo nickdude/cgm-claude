@@ -126,18 +126,16 @@ class _GlucoseTimelineChartState extends State<GlucoseTimelineChart> {
   bool _olderRequested = false;
   double? _oldestLoadedMs;
 
-  // --- Event lane state ---
-  static const double _laneHeight = 42;
+  // --- Event markers (on the glucose line) ---
   static const double _laneMarker = 24;
   static const double _clusterGap = 20; // px below which events are a cluster
-  static const double _spreadStep = 22; // horizontal fan within a cluster
-  static const double _staggerY = 7; // vertical stagger within a cluster
+  static const double _stackStepPx = 24; // vertical lift per stacked marker
+  static const int _maxStack = 3;
 
   late List<TimelineEvent> _sortedEvents;
   late List<double> _eventsMs;
 
   bool get _laneEnabled => widget.onVisibleRangeChanged != null;
-  double get _laneH => _laneEnabled ? _laneHeight : 0;
 
   // Debounced visible-range reporting for lazy loading.
   Timer? _rangeDebounce;
@@ -406,7 +404,6 @@ class _GlucoseTimelineChartState extends State<GlucoseTimelineChart> {
                   yMin: _yMin,
                   yMax: _yMax,
                   selectedIndex: _selectedIndex,
-                  bottomInset: _laneH,
                   showHeader: widget.onCenterChanged == null,
                 ),
                 child: const SizedBox.expand(),
@@ -420,65 +417,95 @@ class _GlucoseTimelineChartState extends State<GlucoseTimelineChart> {
     );
   }
 
-  /// Event lane below the curve: SVG badges positioned by timestamp using the
-  /// same time→pixel mapping as the glucose line, so they pan/zoom in sync.
-  /// Near-coincident events are fanned horizontally + staggered vertically so
-  /// none overlap and every badge stays tappable.
+  // Plot insets — mirror [_TimelinePainter] so markers land exactly on the
+  // painted curve.
+  static const double _curveTopPad = 26;
+  static const double _curveBottomPad = 22;
+
+  /// Maps a glucose value to the same y the painter draws the curve at.
+  double _curveY(double v, double height) {
+    final top = _curveTopPad;
+    final bottom = height - _curveBottomPad;
+    final cv = v.clamp(_yMin, _yMax);
+    return bottom - (bottom - top) * (cv - _yMin) / (_yMax - _yMin);
+  }
+
+  /// Glucose value at an arbitrary instant, linearly interpolated between the
+  /// two nearest readings (clamped to the ends), so a marker can sit on the
+  /// line even between sample points.
+  double _valueAtMs(double ms) {
+    if (_sorted.isEmpty) return _yMin;
+    if (ms <= _timesMs.first) return _sorted.first.glucoseValue;
+    if (ms >= _timesMs.last) return _sorted.last.glucoseValue;
+
+    var lo = 0, hi = _timesMs.length - 1;
+    while (lo < hi) {
+      final mid = (lo + hi) >> 1;
+      if (_timesMs[mid] < ms) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    final i1 = lo, i0 = lo - 1;
+    final t0 = _timesMs[i0], t1 = _timesMs[i1];
+    final v0 = _sorted[i0].glucoseValue, v1 = _sorted[i1].glucoseValue;
+    final f = (t1 == t0) ? 0.0 : (ms - t0) / (t1 - t0);
+    return v0 + (v1 - v0) * f;
+  }
+
+  /// Event badges placed **on the glucose line** at each event's exact (x, y):
+  /// x from the shared time→pixel mapping, y from the glucose value at that
+  /// instant. Overlapping events stack straight up so the x stays exact.
   List<Widget> _buildEventLane(double height) {
     if (!_laneEnabled || _sortedEvents.isEmpty || _plotW <= 0) {
       return const [];
     }
 
     final m = _laneMarker;
-    final laneCenterY = height - _laneH / 2;
-
-    // Visible events with their x (events sorted by time → x is monotonic).
-    final vis = <_PlacedEvent>[];
-    for (var i = 0; i < _sortedEvents.length; i++) {
-      final x = _xForMs(_eventsMs[i]);
-      if (x < -m || x > _plotW + m) continue;
-      vis.add(_PlacedEvent(_sortedEvents[i], x));
-    }
-    if (vis.isEmpty) return const [];
-
-    // Group into clusters by horizontal proximity.
-    final clusters = <List<_PlacedEvent>>[];
-    var cur = <_PlacedEvent>[vis.first];
-    for (var i = 1; i < vis.length; i++) {
-      if (vis[i].x - cur.last.x < _clusterGap) {
-        cur.add(vis[i]);
-      } else {
-        clusters.add(cur);
-        cur = [vis[i]];
-      }
-    }
-    clusters.add(cur);
+    final half = m / 2;
+    final topLimit = _curveTopPad + half;
+    final bottomLimit = height - _curveBottomPad - half;
 
     final out = <Widget>[];
-    for (final cl in clusters) {
-      final n = cl.length;
-      final centerX = cl.map((c) => c.x).reduce((a, b) => a + b) / n;
-      for (var j = 0; j < n; j++) {
-        final px = n > 1
-            ? centerX + (j - (n - 1) / 2) * _spreadStep
-            : cl[j].x;
-        final py = n > 1
-            ? laneCenterY + (j.isEven ? -_staggerY : _staggerY)
-            : laneCenterY;
 
-        final event = cl[j].event;
-        out.add(
-          Positioned(
-            left: px - m / 2,
-            top: py - m / 2,
-            child: _LaneMarker(
-              event: event,
-              size: m,
-              onTap: () => widget.onEventTap?.call(event),
-            ),
-          ),
-        );
+    // Events are sorted by time → x is monotonic; cluster by running gap and
+    // stack each cluster vertically (x stays exact).
+    double? clusterStartX;
+    var level = 0;
+
+    for (var i = 0; i < _sortedEvents.length; i++) {
+      final x = _xForMs(_eventsMs[i]);
+      if (x < -m || x > _plotW + m) {
+        clusterStartX = null;
+        level = 0;
+        continue;
       }
+
+      if (clusterStartX != null && (x - clusterStartX) < _clusterGap) {
+        level = (level + 1).clamp(0, _maxStack);
+      } else {
+        clusterStartX = x;
+        level = 0;
+      }
+
+      final event = _sortedEvents[i];
+      final curveY = _curveY(_valueAtMs(_eventsMs[i]), height);
+      final y = (curveY - level * _stackStepPx)
+          .clamp(topLimit, bottomLimit)
+          .toDouble();
+
+      out.add(
+        Positioned(
+          left: x - half,
+          top: y - half,
+          child: _LaneMarker(
+            event: event,
+            size: m,
+            onTap: () => widget.onEventTap?.call(event),
+          ),
+        ),
+      );
     }
     return out;
   }
@@ -525,7 +552,6 @@ class _TimelinePainter extends CustomPainter {
     required this.yMin,
     required this.yMax,
     required this.selectedIndex,
-    this.bottomInset = 0,
     this.showHeader = true,
   });
 
@@ -536,10 +562,6 @@ class _TimelinePainter extends CustomPainter {
   final double yMin;
   final double yMax;
   final int? selectedIndex;
-
-  /// Extra space reserved at the bottom for the event lane, so the curve +
-  /// axis sit above it.
-  final double bottomInset;
 
   /// Paint the built-in centre-date header. Suppressed when the host renders
   /// its own date label (driven by `onCenterChanged`).
@@ -558,7 +580,7 @@ class _TimelinePainter extends CustomPainter {
       0,
       _topPad,
       size.width - _rightPad,
-      size.height - _bottomPad - bottomInset,
+      size.height - _bottomPad,
     );
 
     double dx(int i) => plot.left + (timesMs[i] - _winStart) / winSpan * plot.width;
@@ -802,19 +824,11 @@ class _TimelinePainter extends CustomPainter {
       old.selectedIndex != selectedIndex ||
       old.yMin != yMin ||
       old.yMax != yMax ||
-      old.bottomInset != bottomInset ||
       old.showHeader != showHeader ||
       !identical(old.sorted, sorted);
 }
 
-/// A visible event paired with its resolved x-position in the lane.
-class _PlacedEvent {
-  const _PlacedEvent(this.event, this.x);
-  final TimelineEvent event;
-  final double x;
-}
-
-/// A single SVG event badge in the lane. White-circle SVG (carries its own
+/// A single SVG event badge on the curve. White-circle SVG (carries its own
 /// ring + glyph) with a soft circular shadow for elevation; fully tappable.
 class _LaneMarker extends StatelessWidget {
   const _LaneMarker({
