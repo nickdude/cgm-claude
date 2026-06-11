@@ -121,7 +121,6 @@ class _GlucoseTimelineChartState extends State<GlucoseTimelineChart> {
   double _focalTimeMs = 0;
 
   int? _selectedIndex;
-  DateTime? _selectedTime;
 
   bool _olderRequested = false;
   double? _oldestLoadedMs;
@@ -336,10 +335,6 @@ class _GlucoseTimelineChartState extends State<GlucoseTimelineChart> {
     final i = _indexAtX(x);
     setState(() {
       _selectedIndex = i;
-      _selectedTime = DateTime.fromMillisecondsSinceEpoch(
-        _msForX(x).round(),
-        isUtc: true,
-      );
     });
   }
 
@@ -521,7 +516,10 @@ class _GlucoseTimelineChartState extends State<GlucoseTimelineChart> {
     final py = _yForValue(r.glucoseValue, height);
     final above = py > 76;
     final tx = px.clamp(86.0, math.max(86.0, _plotW - 86.0)).toDouble();
-    final time = _selectedTime ?? r.readingAt;
+    // Show the selected reading's ACTUAL time, not the tapped x-position time —
+    // otherwise the tooltip can read a few minutes ahead of the real reading
+    // (e.g. a 12:12 reading showing as 12:15).
+    final time = r.readingAt;
 
     return [
       Positioned(
