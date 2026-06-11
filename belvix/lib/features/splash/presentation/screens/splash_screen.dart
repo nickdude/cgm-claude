@@ -124,7 +124,7 @@ class _SplashScreenState
             const Text(
               "CGM Platform",
               style: TextStyle(
-                color: Colors.white,
+                color: Colors.black87,
                 fontSize: 34,
                 fontWeight:
                     FontWeight.bold,
