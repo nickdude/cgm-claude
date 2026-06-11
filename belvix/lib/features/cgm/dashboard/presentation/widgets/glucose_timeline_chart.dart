@@ -141,9 +141,6 @@ class _GlucoseTimelineChartState extends State<GlucoseTimelineChart> {
 
   // --- Event markers (on the glucose line) ---
   static const double _laneMarker = 24;
-  static const double _clusterGap = 20; // px below which events are a cluster
-  static const double _stackStepPx = 24; // vertical lift per stacked marker
-  static const int _maxStack = 3;
 
   late List<TimelineEvent> _sortedEvents;
   late List<double> _eventsMs;
@@ -465,7 +462,9 @@ class _GlucoseTimelineChartState extends State<GlucoseTimelineChart> {
 
   /// Event badges placed **on the glucose line** at each event's exact (x, y):
   /// x from the shared time→pixel mapping, y from the glucose value at that
-  /// instant. Overlapping events stack straight up so the x stays exact.
+  /// instant. Markers always sit on the curve at their own point — they're
+  /// never lifted/stacked — so their position stays consistent at any zoom
+  /// (near-coincident events simply overlap at their shared point).
   List<Widget> _buildEventLane(double height) {
     if (!_laneEnabled || _sortedEvents.isEmpty || _plotW <= 0) {
       return const [];
@@ -478,31 +477,13 @@ class _GlucoseTimelineChartState extends State<GlucoseTimelineChart> {
 
     final out = <Widget>[];
 
-    // Events are sorted by time → x is monotonic; cluster by running gap and
-    // stack each cluster vertically (x stays exact).
-    double? clusterStartX;
-    var level = 0;
-
     for (var i = 0; i < _sortedEvents.length; i++) {
       final x = _xForMs(_eventsMs[i]);
-      if (x < -m || x > _plotW + m) {
-        clusterStartX = null;
-        level = 0;
-        continue;
-      }
-
-      if (clusterStartX != null && (x - clusterStartX) < _clusterGap) {
-        level = (level + 1).clamp(0, _maxStack);
-      } else {
-        clusterStartX = x;
-        level = 0;
-      }
+      if (x < -m || x > _plotW + m) continue;
 
       final event = _sortedEvents[i];
       final curveY = _curveY(_valueAtMs(_eventsMs[i]), height);
-      final y = (curveY - level * _stackStepPx)
-          .clamp(topLimit, bottomLimit)
-          .toDouble();
+      final y = curveY.clamp(topLimit, bottomLimit).toDouble();
 
       out.add(
         Positioned(
