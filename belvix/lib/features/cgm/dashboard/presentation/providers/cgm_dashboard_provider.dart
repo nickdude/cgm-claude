@@ -229,13 +229,27 @@ class CGMDashboardProvider extends ChangeNotifier {
 
     if (incoming.isEmpty) return;
 
-    _mergeReadings(incoming);
+    // Write to the backend first, then render the stored records — the
+    // dashboard reads from the API, refreshed immediately by this SDK write
+    // instead of waiting for the next poll.
+    _persistAndRender(incoming);
+  }
+
+  /// Persists [incoming] to the backend and folds the stored records into the
+  /// displayed readings + metrics. The merge is idempotent, so the polling
+  /// loop won't double-count what this already added.
+  Future<void> _persistAndRender(
+    List<CgmReadingModel> incoming,
+  ) async {
+    final saved = await _persistNew(incoming);
+
+    if (saved.isEmpty) return;
+
+    _mergeReadings(saved);
 
     _recomputeLatest();
 
     notifyListeners();
-
-    _persistNew(incoming);
   }
 
   /// Pulls sensor-buffered history via the SDK and folds it into the
@@ -260,13 +274,9 @@ class CGMDashboardProvider extends ChangeNotifier {
       final incoming = _convertReadings(raw, allowNowFallback: false);
 
       if (incoming.isNotEmpty) {
-        _mergeReadings(incoming);
-
-        _recomputeLatest();
-
-        notifyListeners();
-
-        await _persistNew(incoming);
+        // Upload the sensor-buffered readings, then render the backend's
+        // stored records (same API source as everything else).
+        await _persistAndRender(incoming);
       }
 
       _historySyncedForSn = sn;
@@ -371,8 +381,15 @@ class CGMDashboardProvider extends ChangeNotifier {
   String _keyOf(CgmReadingModel r) =>
       'ts:${r.readingAt.millisecondsSinceEpoch}_${r.glucoseValue.round()}';
 
-  /// POSTs only readings the backend hasn't seen yet.
-  Future<void> _persistNew(List<CgmReadingModel> incoming) async {
+  /// POSTs only readings the backend hasn't seen yet and returns the stored
+  /// records (the backend is the source of truth). Falls back to the local
+  /// reading when the write returns nothing (e.g. offline) so the value still
+  /// shows. Already-synced readings are skipped and omitted from the result.
+  Future<List<CgmReadingModel>> _persistNew(
+    List<CgmReadingModel> incoming,
+  ) async {
+    final saved = <CgmReadingModel>[];
+
     for (final r in incoming) {
       final k = _keyOf(r);
 
@@ -382,12 +399,16 @@ class CGMDashboardProvider extends ChangeNotifier {
 
       _syncedKeys.add(k);
 
-      await _repository.addReading(
+      final created = await _repository.addReading(
         glucoseValue: r.glucoseValue,
         trend: r.trend,
         readingAt: r.readingAt,
       );
+
+      saved.add(created ?? r);
     }
+
+    return saved;
   }
 
   void _mergeReadings(List<CgmReadingModel> incoming) {
