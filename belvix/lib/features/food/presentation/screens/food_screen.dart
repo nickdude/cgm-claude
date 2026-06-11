@@ -6,6 +6,7 @@ import '../../../../core/widgets/app_surface.dart';
 import '../../../../core/widgets/confirm_dialog.dart';
 import '../../../../core/widgets/edit_delete_menu.dart';
 import '../../../../core/widgets/empty_state.dart';
+import '../../../../core/widgets/event_time_label.dart';
 import '../../data/models/food_model.dart';
 import '../providers/food_provider.dart';
 
@@ -162,7 +163,7 @@ class _FoodScreenState
                   ),
                 ),
 
-                Text(food.time),
+                EventTimeLabel(food.loggedAt.toLocal()),
 
                 EditDeleteMenu(
                   onEdit: () => _openSheet(editing: food),

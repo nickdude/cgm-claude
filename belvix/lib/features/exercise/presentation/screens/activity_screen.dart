@@ -6,6 +6,7 @@ import '../../../../core/widgets/app_surface.dart';
 import '../../../../core/widgets/confirm_dialog.dart';
 import '../../../../core/widgets/edit_delete_menu.dart';
 import '../../../../core/widgets/empty_state.dart';
+import '../../../../core/widgets/event_time_label.dart';
 import '../../data/models/exercise_model.dart';
 import '../providers/exercise_provider.dart';
 
@@ -167,7 +168,7 @@ class _ActivityScreenState
                   ),
                 ),
 
-                Text(exercise.time),
+                EventTimeLabel(exercise.loggedAt.toLocal()),
 
                 EditDeleteMenu(
                   onEdit: () => _openSheet(editing: exercise),

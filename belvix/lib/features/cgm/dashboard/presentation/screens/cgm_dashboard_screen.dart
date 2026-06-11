@@ -1141,6 +1141,9 @@ class _MeterPainter extends CustomPainter {
 
 enum _TimelineFilter { all, food, exercise, insulin, finger }
 
+/// Date + time stamp for a timeline entry, e.g. "12 Jun, 12:12 AM".
+String _eventDateTime(DateTime t) => DateFormat('d MMM, h:mm a').format(t);
+
 class _TimelineEntry {
   const _TimelineEntry({
     required this.kind,
@@ -1197,7 +1200,7 @@ class _TimelineSectionState extends State<_TimelineSection> {
                 kind: _TimelineFilter.all,
                 icon: Icons.error_outline,
                 iconColor: DashboardTheme.danger,
-                time: DateFormat('h:mm a').format(r.readingAt),
+                time: _eventDateTime(r.readingAt),
                 title: 'Hyperglycemic event detected',
                 subtitle:
                     'Your glucose (${r.glucoseValue.round()}) rose above the '
@@ -1214,7 +1217,7 @@ class _TimelineSectionState extends State<_TimelineSection> {
               kind: _TimelineFilter.food,
               icon: Icons.restaurant,
               iconColor: DashboardTheme.textPrimary,
-              time: f.time,
+              time: _eventDateTime(f.loggedAt.toLocal()),
               title: f.title,
               subtitle: '${f.calories} cal · ${f.carbs}g carbs',
             ),
@@ -1228,7 +1231,7 @@ class _TimelineSectionState extends State<_TimelineSection> {
               kind: _TimelineFilter.exercise,
               icon: Icons.monitor_heart_outlined,
               iconColor: DashboardTheme.textPrimary,
-              time: e.time,
+              time: _eventDateTime(e.loggedAt.toLocal()),
               title: e.title,
               subtitle: '${e.duration} min · ${e.caloriesBurned} kcal',
             ),
@@ -1242,7 +1245,7 @@ class _TimelineSectionState extends State<_TimelineSection> {
               kind: _TimelineFilter.insulin,
               icon: Icons.water_drop_outlined,
               iconColor: const Color(0xFF7C3AED),
-              time: i.time,
+              time: _eventDateTime(i.loggedAt.toLocal()),
               title: i.insulinType,
               subtitle: '${i.dosage} units',
             ),
@@ -1256,7 +1259,7 @@ class _TimelineSectionState extends State<_TimelineSection> {
               kind: _TimelineFilter.finger,
               icon: Icons.bloodtype_outlined,
               iconColor: DashboardTheme.danger,
-              time: f.time,
+              time: _eventDateTime(f.loggedAt.toLocal()),
               title: 'Glucose Meter · ${f.glucoseValue} mg/dL',
               subtitle: f.notes.isEmpty ? null : f.notes,
             ),

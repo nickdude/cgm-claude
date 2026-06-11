@@ -6,6 +6,7 @@ import '../../../../core/widgets/app_surface.dart';
 import '../../../../core/widgets/confirm_dialog.dart';
 import '../../../../core/widgets/edit_delete_menu.dart';
 import '../../../../core/widgets/empty_state.dart';
+import '../../../../core/widgets/event_time_label.dart';
 import '../../data/models/finger_blood_model.dart';
 import '../providers/finger_blood_provider.dart';
 
@@ -163,7 +164,7 @@ class _FingerBloodScreenState
                   ),
                 ),
 
-                Text(item.time),
+                EventTimeLabel(item.loggedAt.toLocal()),
 
                 EditDeleteMenu(
                   onEdit: () => _openDialog(editing: item),
