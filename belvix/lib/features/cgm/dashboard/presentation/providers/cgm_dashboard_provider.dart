@@ -87,6 +87,15 @@ class CGMDashboardProvider extends ChangeNotifier {
 
   bool _historySyncInFlight = false;
 
+  /// Sensor activation epoch (seconds) and sampling interval (seconds) from the
+  /// SDK `deviceInfo` frame. A reading's true time is deterministically
+  /// `activate + sequence × interval` — this is the canonical, collapse-proof
+  /// timestamp source (verified against the device: it matches `createTime`
+  /// exactly). Null until the first deviceInfo arrives.
+  int? _deviceActivateTimestamp;
+
+  int? _measurementInterval;
+
   /// Ordered oldest → newest; used directly by the chart and by
   /// aggregations (time-in-range, average).
   List<CgmReadingModel> readings = const [];
@@ -190,17 +199,54 @@ class CGMDashboardProvider extends ChangeNotifier {
   }
 
   void _onSdkEvent(Map<String, dynamic> event) {
+    // CGMDBG: temporary instrumentation to measure the sensor buffer.
+    final t = event["type"];
+    if (t == "deviceInfo") {
+      debugPrint(
+        "CGMDBG deviceInfo sn=${event["sn"]} "
+        "timeOffset(maxSeq)=${event["timeOffset"]} "
+        "measurementInterval=${event["measurementInterval"]}s "
+        "deviceActivateTimestamp=${event["deviceActivateTimestamp"]} "
+        "isPreheating=${event["isPreheating"]} isExpired=${event["isExpired"]}",
+      );
+    } else if (t == "connected" || t == "disconnected") {
+      debugPrint("CGMDBG event=$t sn=${event["sn"]}");
+    } else if (t == "glucoseData") {
+      final n = (event["bloodSugars"] as List?)?.length ?? 0;
+      debugPrint(
+        "CGMDBG glucoseData batch=$n isAbandoned=${event["isAbandoned"]}",
+      );
+    }
+
     switch (event["type"]) {
       case "glucoseData":
         _handleGlucoseData(event);
         break;
 
-      // Once we know the bound SN (either from the connect ack or the
-      // first deviceInfo frame), pull whatever readings the sensor
-      // buffered while the app was closed/disconnected.
+      // A fresh (re)connection. The sensor keeps measuring every few minutes
+      // while the BLE link is down and replays that buffer once it's back, so
+      // force a backfill on every connect — even when no clean "disconnected"
+      // fired first (a silent out-of-range drop), which would otherwise leave
+      // the guard set and skip the gap entirely.
       case "connected":
+        final sn = event["sn"]?.toString();
+        if (sn != null && sn.isNotEmpty) {
+          _lastKnownSn = sn;
+          _historySyncedForSn = null;
+          _syncHistoryFromSdk(sn);
+        }
+        break;
+
+      // Fires repeatedly while connected; the guard keeps this to one pull
+      // per connection so we don't re-walk the buffer on every frame.
       case "deviceInfo":
         final sn = event["sn"]?.toString();
+        // Capture the activation epoch + sampling interval so every reading
+        // gets a deterministic timestamp from its sequence number.
+        _deviceActivateTimestamp =
+            (event["deviceActivateTimestamp"] as num?)?.toInt();
+        _measurementInterval =
+            (event["measurementInterval"] as num?)?.toInt();
         if (sn != null && sn.isNotEmpty) {
           _lastKnownSn = sn;
           _syncHistoryFromSdk(sn);
@@ -223,6 +269,25 @@ class CGMDashboardProvider extends ChangeNotifier {
     }
 
     final raw = (event["bloodSugars"] as List?) ?? const [];
+
+    // CGMDBG: dump the timestamp fields of a few sample readings so we can see
+    // whether buffered readings carry valid distinct createTime or not.
+    if (raw.isNotEmpty) {
+      void dump(String tag, int i) {
+        if (i < 0 || i >= raw.length) return;
+        final m = Map<String, dynamic>.from(raw[i] as Map);
+        debugPrint(
+          "CGMDBG sample[$tag i=$i] createTime=${m["createTime"]} "
+          "timeOffset(seq)=${m["timeOffset"]} "
+          "processed=${m["processedBloodSugar"]} trend=${m["trend"]}",
+        );
+      }
+
+      dump("first", 0);
+      dump("second", 1);
+      dump("mid", raw.length ~/ 2);
+      dump("last", raw.length - 1);
+    }
 
     // Live readings genuinely just arrived → receive-time is acceptable.
     final incoming = _convertReadings(raw, allowNowFallback: true);
@@ -264,13 +329,23 @@ class CGMDashboardProvider extends ChangeNotifier {
     _historySyncInFlight = true;
 
     try {
-      // indexStart=1 pulls the device's full buffer; already-known
-      // readings are filtered out by [_syncedKeys] before upload, so
-      // re-pulling on every reconnect is cheap and idempotent.
-      final raw = await CgmSdk.getHistory(sn, indexStart: 1);
+      // Restart-safe checkpoint: the highest sequence the backend already
+      // holds for this sensor. We only need records after it. This is the
+      // explicit-pull safety net — the SDK also auto-replays the buffer via
+      // the live glucoseData stream (handled in _handleGlucoseData), so this
+      // fills any tail the stream missed without duplicating (idempotent on
+      // the sequence key).
+      final checkpoint = await _repository.getCheckpoint(sn);
 
-      // History is not "now" — drop readings the SDK gave no valid
-      // timestamp for instead of collapsing them onto the current instant.
+      final raw =
+          await CgmSdk.getHistory(sn, indexStart: checkpoint + 1);
+
+      debugPrint(
+        "CGMDBG getHistory(sn=$sn, indexStart=${checkpoint + 1}) "
+        "-> raw=${raw.length} (checkpoint=$checkpoint)",
+      );
+
+      // Sequence-derived timestamps are deterministic, so no now-fallback.
       final incoming = _convertReadings(raw, allowNowFallback: false);
 
       if (incoming.isNotEmpty) {
@@ -313,7 +388,15 @@ class CGMDashboardProvider extends ChangeNotifier {
 
       if (processed == null) continue;
 
-      final resolved = _resolveReadingTime((m["createTime"] as num?)?.toInt());
+      final seq = (m["timeOffset"] as num?)?.toInt();
+
+      // Timestamp priority:
+      //  1. Deterministic reconstruction from the sequence number
+      //     (`activate + seq × interval`) — collapse-proof, never "now".
+      //  2. The reading's own `createTime` (equivalent, kept as a fallback).
+      //  3. Receive-time, but only for genuinely-live readings.
+      final resolved = _timeFromSequence(seq) ??
+          _resolveReadingTime((m["createTime"] as num?)?.toInt());
 
       final readingAt = resolved ?? (allowNowFallback ? DateTime.now() : null);
 
@@ -325,11 +408,31 @@ class CGMDashboardProvider extends ChangeNotifier {
           glucoseValue: mmolToMgDl(processed),
           trend: _trendLabel((m["trend"] as num?)?.toInt()),
           readingAt: readingAt,
+          // The sensor's native record id — the canonical dedup key.
+          sensorSerial: _lastKnownSn,
+          sequenceNumber: seq,
         ),
       );
     }
 
     return out;
+  }
+
+  /// Deterministic reading time from the sensor's own record number:
+  /// `deviceActivateTimestamp + sequence × measurementInterval` (seconds).
+  /// Verified to match the SDK's `createTime` exactly, but immune to any
+  /// per-reading `createTime` glitch — so buffered batches can never collapse
+  /// onto one instant. Returns null until the activation frame is known.
+  DateTime? _timeFromSequence(int? seq) {
+    final activate = _deviceActivateTimestamp;
+    final interval = _measurementInterval;
+
+    if (seq == null || seq < 1) return null;
+    if (activate == null || activate <= 0) return null;
+    if (interval == null || interval <= 0) return null;
+
+    final ms = (activate + seq * interval) * 1000;
+    return DateTime.fromMillisecondsSinceEpoch(ms);
   }
 
   /// The SDK reports `createTime` in **seconds** since the unix epoch
@@ -378,34 +481,74 @@ class CGMDashboardProvider extends ChangeNotifier {
     _updateAlerts();
   }
 
-  String _keyOf(CgmReadingModel r) =>
-      'ts:${r.readingAt.millisecondsSinceEpoch}_${r.glucoseValue.round()}';
+  /// Session dedup key. Prefer the sensor's native (serial, sequence) id —
+  /// stable across reconnects and immune to timestamp collapse. Fall back to
+  /// timestamp+value for rows without a sequence (legacy backend rows, manual
+  /// entries).
+  String _keyOf(CgmReadingModel r) {
+    if (r.sensorSerial != null && r.sequenceNumber != null) {
+      return 'seq:${r.sensorSerial}_${r.sequenceNumber}';
+    }
+    return 'ts:${r.readingAt.millisecondsSinceEpoch}_${r.glucoseValue.round()}';
+  }
 
-  /// POSTs only readings the backend hasn't seen yet and returns the stored
-  /// records (the backend is the source of truth). Falls back to the local
-  /// reading when the write returns nothing (e.g. offline) so the value still
-  /// shows. Already-synced readings are skipped and omitted from the result.
+  /// Idempotently uploads readings the backend hasn't seen yet (in one bulk
+  /// round-trip) and returns the stored records — the backend is the source of
+  /// truth. Dedup is by the sensor's native (serial, sequence) key, so any
+  /// number of reconnects/restarts can't create duplicates. On a transient
+  /// failure the readings are NOT marked synced and the local values are
+  /// returned so they still render and get retried on the next pull/poll.
   Future<List<CgmReadingModel>> _persistNew(
     List<CgmReadingModel> incoming,
   ) async {
-    final saved = <CgmReadingModel>[];
-
+    // Skip readings already synced this session.
+    final fresh = <CgmReadingModel>[];
     for (final r in incoming) {
-      final k = _keyOf(r);
+      if (_syncedKeys.contains(_keyOf(r))) continue;
+      fresh.add(r);
+    }
 
-      if (_syncedKeys.contains(k)) {
-        continue;
+    if (fresh.isEmpty) return const [];
+
+    final stored = await _repository.addReadingsBulk(fresh);
+
+    debugPrint(
+      "CGMDBG persist: in=${incoming.length} fresh=${fresh.length} "
+      "bulk=${stored?.length ?? 'unavailable'}",
+    );
+
+    if (stored != null) {
+      // The bulk upsert is idempotent, so a successful response means every
+      // fresh reading is now persisted — safe to skip on future pulls.
+      for (final r in fresh) {
+        _syncedKeys.add(_keyOf(r));
       }
+      // Prefer the backend's stored rows (ids + canonical fields); fall back to
+      // the local readings if the backend echoed nothing back.
+      return stored.isNotEmpty ? stored : fresh;
+    }
 
-      _syncedKeys.add(k);
-
+    // Bulk endpoint unavailable (e.g. backend not redeployed yet) or it errored
+    // → fall back to per-reading upserts against the single-insert endpoint.
+    // Sequence-reconstructed timestamps are already distinct, so these store
+    // correctly even on the older backend. Mark synced only on confirmed writes
+    // so transient failures retry on the next pull.
+    final saved = <CgmReadingModel>[];
+    for (final r in fresh) {
       final created = await _repository.addReading(
         glucoseValue: r.glucoseValue,
         trend: r.trend,
         readingAt: r.readingAt,
+        sensorSerial: r.sensorSerial,
+        sequenceNumber: r.sequenceNumber,
       );
 
-      saved.add(created ?? r);
+      if (created != null) {
+        _syncedKeys.add(_keyOf(r));
+        saved.add(created);
+      } else {
+        saved.add(r);
+      }
     }
 
     return saved;

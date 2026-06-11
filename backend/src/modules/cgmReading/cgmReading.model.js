@@ -12,6 +12,19 @@ const cgmReadingSchema = new mongoose.Schema(
       ref: "CGMDevice",
     },
 
+    // Sensor serial number + the sensor's own monotonic record id (the SDK's
+    // `timeOffset`). Together they uniquely identify a physical reading no
+    // matter how many times it is re-synced — this is the basis for the
+    // idempotent backfill. Optional so pre-existing rows (which carry no
+    // sequence) remain valid and untouched.
+    sensorSerial: {
+      type: String,
+    },
+
+    sequenceNumber: {
+      type: Number,
+    },
+
     glucoseValue: Number,
 
     trend: String,
@@ -23,13 +36,23 @@ const cgmReadingSchema = new mongoose.Schema(
   }
 );
 
-// Dedup constraint: one reading per device per timestamp. Prevents the same
-// reading being inserted twice (e.g. live stream + history backfill, or a
-// retry). Run the cleanup script before deploying so the index can build.
+// Primary idempotency key: one row per (sensor, sequence). Partial so it only
+// constrains rows that actually carry a sequence number — legacy rows
+// (sequenceNumber absent) are excluded from the index and left alone.
+// Re-syncing the same reading across reconnects/restarts updates in place
+// instead of duplicating.
 cgmReadingSchema.index(
-  { userId: 1, deviceId: 1, readingAt: 1 },
-  { unique: true }
+  { sensorSerial: 1, sequenceNumber: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      sequenceNumber: { $exists: true },
+    },
+  }
 );
+
+// Query index for the dashboard/graph: time-ordered readings per user.
+cgmReadingSchema.index({ userId: 1, readingAt: 1 });
 
 const CGMReading = mongoose.model(
   "CGMReading",

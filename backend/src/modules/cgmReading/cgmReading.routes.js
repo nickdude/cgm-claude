@@ -4,6 +4,8 @@ import authMiddleware from "../../middleware/auth.middleware.js";
 
 import {
   addReading,
+  addReadingsBulk,
+  getCheckpoint,
   getReadings,
 } from "./cgmReading.controller.js";
 
@@ -13,6 +15,18 @@ router.post(
   "/add",
   authMiddleware,
   addReading
+);
+
+router.post(
+  "/bulk",
+  authMiddleware,
+  addReadingsBulk
+);
+
+router.get(
+  "/checkpoint",
+  authMiddleware,
+  getCheckpoint
 );
 
 router.get(

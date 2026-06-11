@@ -10,12 +10,23 @@ class CgmReadingModel {
 
   final DateTime readingAt;
 
+  /// Sensor serial number this reading came from. Paired with
+  /// [sequenceNumber] it forms the sensor's native, reconnect-stable id used
+  /// for idempotent backfill. Null for readings not sourced from the SDK.
+  final String? sensorSerial;
+
+  /// The sensor's own monotonic record id for this reading (SDK `timeOffset`,
+  /// 1-based). The canonical dedup key — immune to timestamp collapse.
+  final int? sequenceNumber;
+
   CgmReadingModel({
     this.id,
     this.deviceId,
     required this.glucoseValue,
     required this.trend,
     required this.readingAt,
+    this.sensorSerial,
+    this.sequenceNumber,
   });
 
   factory CgmReadingModel.fromJson(
@@ -43,6 +54,11 @@ class CgmReadingModel {
       trend: (json["trend"] ?? "Stable")
           .toString(),
       readingAt: parsed,
+      sensorSerial:
+          json["sensorSerial"]?.toString(),
+      sequenceNumber:
+          (json["sequenceNumber"] as num?)
+              ?.toInt(),
     );
   }
 
@@ -52,6 +68,10 @@ class CgmReadingModel {
       "trend": trend,
       "readingAt":
           readingAt.toIso8601String(),
+      if (sensorSerial != null)
+        "sensorSerial": sensorSerial,
+      if (sequenceNumber != null)
+        "sequenceNumber": sequenceNumber,
     };
   }
 }
