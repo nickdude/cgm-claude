@@ -27,6 +27,20 @@ double _wallMs(DateTime t) => DateTime.utc(
   t.millisecond,
 ).millisecondsSinceEpoch.toDouble();
 
+/// The reading's wall-clock as a **local** DateTime (same displayed numbers,
+/// local flag). Logging an event at a chart point must use this — the add/save
+/// path does `loggedAt.toUtc()` then displays with `toLocal()`, so a value must
+/// go in as local to round-trip. Passing the reading's UTC instant instead
+/// double-applies the timezone offset (the +5:30 bug when adding via the chart).
+DateTime _wallClockLocal(DateTime t) => DateTime(
+  t.year,
+  t.month,
+  t.day,
+  t.hour,
+  t.minute,
+  t.second,
+);
+
 /// Continuous, timestamp-based glucose timeline.
 ///
 /// Unlike a per-day chart, this renders the *whole* loaded reading set on a
@@ -532,8 +546,9 @@ class _GlucoseTimelineChartState extends State<GlucoseTimelineChart> {
             // Format the IST wall-clock directly (no toLocal) so the tooltip
             // matches the cards and the axis.
             timeText: DateFormat('MMM d • h:mm a').format(time),
-            // Log against the selected reading's actual time.
-            onAdd: () => widget.onAddAtTime?.call(r.readingAt),
+            // Log against the selected reading's wall-clock as a *local* time
+            // so the save path round-trips correctly (no +5:30 shift).
+            onAdd: () => widget.onAddAtTime?.call(_wallClockLocal(r.readingAt)),
           ),
         ),
       ),
